@@ -17,7 +17,7 @@ class KinDynComputations:
     in mixed representation, for Floating Base systems - as humanoid robots.
     """
 
-    def __init__(
+    def __init__( #creazione costruttore, self rappresenta istanza
         self,
         urdfstring: str,
         joints_name_list: list = None,
@@ -412,29 +412,28 @@ class KinDynComputations:
         """
         return self.rbdalgos.CoM_position(base_transform, joint_positions).array
     
-    def ddq_fun(self, mass_matrix, gravity_term, coriolis_term) -> cs.Function:
-        ddq = cs.SX.sym("ddq", mass_matrix.shape[0])
-         # joint_positions = cs.SX.sym("s", self.NDoF)
-         # base_transform = cs.SX.sym("H", 4, 4)
-         # base_velocity = cs.SX.sym("v_b", 6)
-         # joint_velocities = cs.SX.sym("s_dot", self.NDoF)
-        q_ddot = cs.inv(mass_matrix) @ (-coriolis_term - gravity_term)
-        # Crea una funzione CasADi per le accelerazioni delle giunture
-        ddq_function = cs.Function("ddq_function", [ddq], [q_ddot])
-
-        #return ddq_function
+    def ddq_fun(self) -> cs.Function:
+        
+        joint_positions = cs.SX.sym("s", self.NDoF)
+        base_transform = cs.SX.sym("H", 4, 4)
+        base_velocity = cs.SX.sym("v_b", 6)
+        joint_velocities = cs.SX.sym("s_dot", self.NDoF)
+        C = cs.SX.sym("C", self.NDoF)
+        M = cs.SX.sym("M", self.NDoF, self.NDoF)
+        h = cs.SX.sym("h", self.NDoF)
+        ddq = cs.solve ( cs.inv(M) @ (-C - h))
+        
+    
         return cs.Function(
             "ddq",
-             # [base_transform, joint_positions, base_velocity, joint_velocities],
-            [ddq_function.array],
-            self.f_opts,
-            )
+            [base_transform, joint_positions, base_velocity, joint_velocities, C, M, h],
+            [ddq],
+            self.f_opts
+    )
     
-
     
 
 #dq accelerazioe, h effetti centrifughi tau
 #M * ddq + h = tau
 #	ddq = M^-1 (tau - h -C ) 
-
 
