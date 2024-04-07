@@ -33,7 +33,7 @@ bias_force_fun = kinDyn.bias_force_fun()
 M = mass_matrix_fun(H, s)
 C = coriolis_term_fun(H, s, v_b, s_dot)
 G = gravity_term_fun(H, s)
-h = bias_force_fun(H, s, v_b, s_dot) #ciao ciao. 
+h = bias_force_fun(H, s, v_b, s_dot) 
 
 
 
