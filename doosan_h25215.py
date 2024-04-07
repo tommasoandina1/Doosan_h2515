@@ -33,14 +33,14 @@ bias_force_fun = kinDyn.bias_force_fun()
 M = mass_matrix_fun(H, s)
 C = coriolis_term_fun(H, s, v_b, s_dot)
 G = gravity_term_fun(H, s)
-h = bias_force_fun(H, s, v_b, s_dot)
+h = bias_force_fun(H, s, v_b, s_dot) #ciao ciao. 
 
 
 
 
 
 # robot dynamics 
-tau = M @ cs.vertcat(v_b_dot, s_ddot) + C + G #lol
+tau = M @ cs.vertcat(v_b_dot, s_ddot) + C + G 
 
 
 tau_fun = cs.Function('tau_f', [H, s, v_b, s_dot, v_b_dot, s_ddot], [tau])
