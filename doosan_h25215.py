@@ -6,7 +6,7 @@ import casadi as cs
 from math import sqrt
 
 
-model_path = "h2515.blue.urdf" #"/home/tommaso/Doosan_h2515/h2515.blue.urdf"
+model_path = "h2515.blue.urdf" 
 joints_name_list = 'joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6' 
 root_link = 'base'
 
@@ -31,13 +31,39 @@ mass_matrix_fun = kinDyn.mass_matrix_fun()
 coriolis_term_fun = kinDyn.coriolis_term_fun()
 gravity_term_fun =  kinDyn.gravity_term_fun()
 bias_force_fun = kinDyn.bias_force_fun()
+Jacobian_fun = kinDyn.jacobian_fun("link6")
+
 
 M = mass_matrix_fun(H, s)
 C = coriolis_term_fun(H, s, v_b, s_dot)
 G = gravity_term_fun(H, s)
-h = bias_force_fun(H, s, v_b, s_dot) 
+h = bias_force_fun(H, s, v_b, s_dot)
+J = Jacobian_fun(H, s)
+new_J = J[:3, :] #first three rows
 
+#Dissiaptive Force
 
+a = 40
+f_lev = cs.SX.sym('f_lev')
+f_min = 10
+f_max = 200
+
+f = cs.linspace(f_min, f_max, 100)  # Genera 100 valori nel range [10, 200]
+
+# Calcola le forze f_vec in base alla frequenza f
+f_vec = cs.vertcat(a*120 * cs.sin(2 * cs.pi * f),
+                   a*70 * cs.sin(2 * cs.pi * f),
+                   a*40 * cs.sin(2 * cs.pi * f))
+
+# Creare una funzione per valutare le forze in base alla frequenza
+f_vec_fun = cs.Function('f_vec_fun', [f_lev], [f_vec])
+
+# Esempio di valutazione delle forze per una specifica frequenza
+#f_lev_val = 100  # Ad esempio, valuta le forze per una frequenza di 100 Hz
+#forces = f_vec_fun(f_lev_val)
+#print(forces)
+
+#Controll law (tau)
 class ControllerPD:
     def __init__(self, dt, Kp=0.1):
         self.dt = dt  * 1e-3
@@ -52,22 +78,61 @@ class ControllerPD:
         tau = self.Kp * (q_des - q_next) - self.Kd * dq_next  
         return q_next, dq_next, tau
 
-dt = 1/16  * 1e-3
-controller = ControllerPD(dt)
 
 
-
-q = 0  # Posizione iniziale
-dq = 0  # Velocità iniziale
-q_des = 2  # Posizione desiderata
-ddq = 0  # Accelerazione iniziale
-
-for _ in range(33):  # Ciclo per 2 secondi (2 / dt)
-    q, dq, tau = controller.update(q, dq, q_des, ddq)
-    ddq = cs.inv(M) @ (tau - h)
-    print(f"q: {q:.4f}, dq: {dq:.4f}, tau: {tau}, ddq: {ddq}")
-    controller.prev_ddq = ddq  
-   
-tau_fun = cs.Function('tau_f', [H, s, v_b, s_dot, v_b_dot, s_ddot], [tau])
+dt_initial = 1/16 * 1e-3  
+dt_final = 2 * 1e-3  
+num_steps = int(dt_final/dt_initial)  # Numero di passi
 
 
+dt = dt_initial
+errors = []
+
+controller = ControllerPD(dt_initial) 
+
+
+while dt <= dt_final:
+    q = 0
+    dq = 0
+    q_des = 2
+    ddq = 0
+    mean_error = 0
+
+    for _ in range(num_steps):
+        q, dq, tau = controller.update(q, dq, q_des, ddq)
+        ddq = cs.inv(M) @ (tau - h)
+
+    errors.append(mean_error)
+    dt *= 2
+
+mean_error_inf_norm = max(errors)
+print(f"Mean error inf-norm: {mean_error_inf_norm}")
+
+
+dt = dt_initial
+errors = []
+
+while dt <= dt_final:
+    q = 0
+    dq = 0
+    q_des = 2
+    ddq = 0
+    mean_error = 0
+
+    for _ in range(num_steps):
+        q, dq, tau = controller.update(q, dq, q_des, ddq)
+        
+        # Calcola le forze in base alla frequenza corrente
+        f_vec_val = f_vec_fun(f_lev)  
+        
+        # Trasponi il vettore delle forze e definisci come 3x1
+        f_vec_val_3x1 = cs.vertcat(f_vec_val[0], f_vec_val[1], f_vec_val[2])
+        
+        # Aggiungi le forze alla dinamica
+        ddq = cs.inv(M) @ (tau - h + new_J.T @ f_vec_val_3x1)  
+
+    errors.append(mean_error)
+    dt *= 2
+
+mean_error_inf_norm = max(errors)
+print(f"Mean error inf-norm con forze: {mean_error_inf_norm}")
