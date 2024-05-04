@@ -5,7 +5,8 @@ import numpy as np
 import casadi as cs
 from math import sqrt
 
-model_path = "/home/tommaso/Doosan_h2515/h2515.blue.urdf"
+
+model_path = "h2515.blue.urdf" #"/home/tommaso/Doosan_h2515/h2515.blue.urdf"
 joints_name_list = 'joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6' 
 root_link = 'base'
 
@@ -39,7 +40,7 @@ h = bias_force_fun(H, s, v_b, s_dot)
 
 class ControllerPD:
     def __init__(self, dt, Kp=0.1):
-        self.dt = dt   
+        self.dt = dt  * 1e-3
         self.Kp = Kp
         self.Kd = 2 * sqrt(Kp)
         self.prev_ddq = 0 
@@ -51,7 +52,7 @@ class ControllerPD:
         tau = self.Kp * (q_des - q_next) - self.Kd * dq_next  
         return q_next, dq_next, tau
 
-dt = 1/16  
+dt = 1/16  * 1e-3
 controller = ControllerPD(dt)
 
 
@@ -65,6 +66,8 @@ for _ in range(33):  # Ciclo per 2 secondi (2 / dt)
     q, dq, tau = controller.update(q, dq, q_des, ddq)
     ddq = cs.inv(M) @ (tau - h)
     print(f"q: {q:.4f}, dq: {dq:.4f}, tau: {tau}, ddq: {ddq}")
-    controller.prev_ddq = ddq  # Aggiorna il valore di ddq precedente
-    #print(f"q: {q:.4f}, dq: {dq:.4f}, tau: {tau:.4f}, ddq: {ddq:.4f}")
+    controller.prev_ddq = ddq  
    
+tau_fun = cs.Function('tau_f', [H, s, v_b, s_dot, v_b_dot, s_ddot], [tau])
+
+
