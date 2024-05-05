@@ -58,11 +58,6 @@ f_vec = cs.vertcat(a*120 * cs.sin(2 * cs.pi * f),
 # Creare una funzione per valutare le forze in base alla frequenza
 f_vec_fun = cs.Function('f_vec_fun', [f_lev], [f_vec])
 
-# Esempio di valutazione delle forze per una specifica frequenza
-#f_lev_val = 100  # Ad esempio, valuta le forze per una frequenza di 100 Hz
-#forces = f_vec_fun(f_lev_val)
-#print(forces)
-
 #Controll law (tau)
 class ControllerPD:
     def __init__(self, dt, Kp=0.1):
@@ -73,10 +68,14 @@ class ControllerPD:
 
 
     def update(self, q, dq, q_des, ddq):
+       
         q_next = q + self.dt * dq
         dq_next = dq + self.dt * self.prev_ddq
         tau = self.Kp * (q_des - q_next) - self.Kd * dq_next  
-        return q_next, dq_next, tau
+
+        q = q_next
+        dq = dq_next
+        return q, dq, tau
 
 
 
@@ -88,25 +87,29 @@ num_steps = int(dt_final/dt_initial)  # Numero di passi
 dt = dt_initial
 errors = []
 
-controller = ControllerPD(dt_initial) 
+controller = ControllerPD(dt_initial)
 
+q = 0  
+dq = 0
+q_des = 2
+ddq = 0
 
 while dt <= dt_final:
-    q = 0
-    dq = 0
-    q_des = 2
-    ddq = 0
-    mean_error = 0
+    errors_per_iteration = []
 
     for _ in range(num_steps):
         q, dq, tau = controller.update(q, dq, q_des, ddq)
         ddq = cs.inv(M) @ (tau - h)
 
-    errors.append(mean_error)
+    # Calcola l'errore finale e lo salva
+    final_error = abs(q_des - q)
+    errors.append(final_error)
+
     dt *= 2
 
-mean_error_inf_norm = max(errors)
-print(f"Mean error inf-norm: {mean_error_inf_norm}")
+# Stampare tutti i valori dell'errore
+for iteration, error in enumerate(errors, 1):
+    print(f"Iterazione {iteration}: Errore finale: {error}")
 
 
 dt = dt_initial
@@ -115,20 +118,20 @@ errors = []
 while dt <= dt_final:
     q = 0
     dq = 0
-    q_des = 2
+    q_des = 20
     ddq = 0
     mean_error = 0
 
     for _ in range(num_steps):
         q, dq, tau = controller.update(q, dq, q_des, ddq)
         
-        # Calcola le forze in base alla frequenza corrente
+        
         f_vec_val = f_vec_fun(f_lev)  
         
-        # Trasponi il vettore delle forze e definisci come 3x1
+        
         f_vec_val_3x1 = cs.vertcat(f_vec_val[0], f_vec_val[1], f_vec_val[2])
         
-        # Aggiungi le forze alla dinamica
+        
         ddq = cs.inv(M) @ (tau - h + new_J.T @ f_vec_val_3x1)  
 
     errors.append(mean_error)
