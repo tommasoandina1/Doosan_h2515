@@ -4,6 +4,7 @@ from adam.casadi import KinDynComputations
 import numpy as np
 import casadi as cs
 from math import sqrt
+import math
 
 
 model_path = "h2515.blue.urdf" 
@@ -58,30 +59,88 @@ f_vec = cs.vertcat(a*120 * cs.sin(2 * cs.pi * f),
 # Creare una funzione per valutare le forze in base alla frequenza
 f_vec_fun = cs.Function('f_vec_fun', [f_lev], [f_vec])
 
+
 #Controll law (tau)
-class ControllerPD:
-    def __init__(self, dt, Kp=0.1):
-        self.dt = dt  * 1e-3
-        self.Kp = Kp
-        self.Kd = 2 * sqrt(Kp)
-        self.prev_ddq = 0 
+
+class Controller:
+    def __init__(self, kp, kd, dt, q_des):
+        self.q_previous = 0.0
+        self.kp = kp
+        self.kd = kd
+        self.dt = dt
+        self.q_des = q_des
+        self.first_iter = True
+
+    def control(self, q, dq):
+        if self.first_iter:
+            self.q_previous = q
+            self.first_iter = False
+
+        self.q_previous = q
+        return self.kp * (self.q_des - q) - self.kd * dq
 
 
-    def update(self, q, dq, q_des, ddq):
-       
-        q_next = q + self.dt * dq
-        dq_next = dq + self.dt * self.prev_ddq
-        tau = self.Kp * (q_des - q_next) - self.Kd * dq_next  
+   
+class Simulator:
+    def __init__(self, q, dt, dq):
+        self.q = q
+        self.dt = dt
+        self.dq = dq
+        self.ddq = cs.SX.zeros(len(q))
+        
 
-        q = q_next
-        dq = dq_next
-        return q, dq, tau
+    def simulate_q(self, tau):
+        dq = self.simulate_dq(tau)
+        self.q += self.dt * dq
+        return self.q
+    
+    def simulate_dq(self, tau):
+        self.ddq += self.dt * (tau - self.h)  # Aggiornato h con self.h
+        self.dq += self.dt * self.ddq
+        return self.dq
+    
+    def simulate_ddq(self, M, tau):
+        self.ddq = cs.inv(M) @ (tau - self.h)  # Aggiornato h con self.h
+        return self.ddq
+
+    
 
 
 
-dt_initial = 1/16 * 1e-3  
-dt_final = 2 * 1e-3  
-num_steps = int(dt_final/dt_initial)  # Numero di passi
+
+
+if __name__ == "__main__":
+    print("LOL")
+    
+    q_0 = 2.0   
+    kp = 0.1 
+    kd = math.sqrt(kp)
+    dt = 1.0 / 16.0 
+    total_time = 2.0 
+    q_des = 20.0
+    dq = 0.0
+    
+    N = int(total_time / dt)
+
+    ctrl = Controller(kp, kd, dt, q_des)
+    simu = Simulator(q_0, dt, dq)
+
+    for i in range(N):
+        print("Time", i * dt, "q =", simu.q)
+        
+        M = mass_matrix_fun(H, s)  # Assicurati che M sia definito prima di essere utilizzato
+        h = bias_force_fun(H, s, v_b, s_dot)  # Calcola il termine h per la configurazione attuale del sistema
+
+        tau = ctrl.control(simu.q, simu.dq)
+        simu.simulate_q(tau)
+        simu.simulate_ddq(M, tau)
+
+
+
+
+"""
+
+
 
 
 dt = dt_initial
@@ -118,7 +177,7 @@ for iteration, error in enumerate(errors, 1):
     print(f"Iterazione {iteration}: Errore finale: {error}")
 
 
-"""
+
 dt = dt_initial
 errors = []
 
