@@ -89,6 +89,9 @@ errors = []
 
 controller = ControllerPD(dt_initial)
 
+
+
+# Inizializza q alla posizione iniziale del robot
 q = 0  
 dq = 0
 q_des = 2
@@ -101,6 +104,9 @@ while dt <= dt_final:
         q, dq, tau = controller.update(q, dq, q_des, ddq)
         ddq = cs.inv(M) @ (tau - h)
 
+        # Stampa il valore di tau ad ogni iterazione
+        print(f"tau: {tau}")
+
     # Calcola l'errore finale e lo salva
     final_error = abs(q_des - q)
     errors.append(final_error)
@@ -112,6 +118,7 @@ for iteration, error in enumerate(errors, 1):
     print(f"Iterazione {iteration}: Errore finale: {error}")
 
 
+"""
 dt = dt_initial
 errors = []
 
@@ -139,3 +146,5 @@ while dt <= dt_final:
 
 mean_error_inf_norm = max(errors)
 print(f"Mean error inf-norm con forze: {mean_error_inf_norm}")
+
+"""
