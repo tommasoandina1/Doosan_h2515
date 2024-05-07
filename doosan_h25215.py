@@ -1,6 +1,7 @@
 from adam.casadi import KinDynComputations
 import casadi as cs
 from math import sqrt
+import numpy as np
 
 
 model_path = "h2515.blue.urdf" 
@@ -31,19 +32,16 @@ bias_force_fun = kinDyn.bias_force_fun()
 Jacobian_fun = kinDyn.jacobian_fun("link6")
 
 
-M = mass_matrix_fun(H, s)
-M = M[:6, :6]
+
 C = coriolis_term_fun(H, s, v_b, s_dot)
 G = gravity_term_fun(H, s)
-h = bias_force_fun(H, s, v_b, s_dot)
-h = h[:6]
 J = Jacobian_fun(H, s)
 new_J = J[:3, :] #first three rows
 
 #Dissiaptive Force
 
 a = 40
-f_lev = cs.SX.sym('f_lev')
+f_lev = cs.SX.sym('f_lev', num_dof)
 f_min = 10
 f_max = 200
 
@@ -103,9 +101,12 @@ class Simulator:
 q_0 = cs.SX.sym('q_0', num_dof)
 kp = 0.1 
 kd = sqrt(kp)
-dt = 1.0 / 16.0 
-total_time = 2.0 
+dt = 1.0 / 16.0 * 1e-3
+total_time = 2.0 * 1e-3
 q_des = cs.SX.sym('q_des', num_dof)
+position = [200, 50, 100, 250, 300, -50]
+q_des = cs.vertcat(*position)
+
 dq = cs.SX.sym('dq', num_dof)
 ddq = cs.SX.sym('ddq', num_dof)
 
@@ -115,14 +116,24 @@ ctrl = Controller(kp, kd, dt, q_des)
 simu = Simulator(q_0, dt, dq, ddq)
 
 for i in range(N):
-    print("Time", i * dt, "q =", simu.q)
+    #print("Time", i * dt, "q =", simu.q)
     
-    M = mass_matrix_fun(H, s)  # Assicurati che M sia definito prima di essere utilizzato
+    
+    M = mass_matrix_fun(H, s)  
     M = M[:6, :6]
-    h = bias_force_fun(H, s, v_b, s_dot)  # Calcola il termine h per la configurazione attuale del sistema
+    h = bias_force_fun(H, s, v_b, s_dot)  
     h = h[:6]
 
     tau = ctrl.control(simu.q, simu.dq)
     simu.simulate_q(tau, h)
     simu.simulate_ddq(M, tau, h)
 
+
+
+# Calcola la differenza tra q_des e q
+error_q = q_des - simu.q
+
+# Calcola la norma all'infinito dell'errore
+norm_inf_error = cs.norm_inf(error_q)
+print(simu.q)
+#print("Norma all'infinito dell'errore tra q_des e q dopo la simulazione:", norm_inf_error)
