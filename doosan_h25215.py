@@ -25,7 +25,7 @@ v_b_dot = cs.SX.sym('v_b_dot', 6)
 s_ddot = cs.SX.sym('s_ddot', num_dof)
 
 # initialize
-mass_matrix_fun = kinDyn.mass_matrix_fun()
+#mass_matrix_fun = kinDyn.mass_matrix_fun()
 coriolis_term_fun = kinDyn.coriolis_term_fun()
 gravity_term_fun =  kinDyn.gravity_term_fun()
 bias_force_fun = kinDyn.bias_force_fun()
@@ -118,9 +118,11 @@ simu = Simulator(q_0, dt, dq, ddq)
 for i in range(N):
     #print("Time", i * dt, "q =", simu.q)
     
-    
     M = mass_matrix_fun(H, s)  
     M = M[:6, :6]
+   
+
+
     h = bias_force_fun(H, s, v_b, s_dot)  
     h = h[:6]
 
@@ -135,5 +137,9 @@ error_q = q_des - simu.q
 
 # Calcola la norma all'infinito dell'errore
 norm_inf_error = cs.norm_inf(error_q)
-print(simu.q)
+#print(simu.q)
 #print("Norma all'infinito dell'errore tra q_des e q dopo la simulazione:", norm_inf_error)
+
+
+M = kinDyn.mass_matrix_fun()
+print('Mass matrix:\n', cs.DM(M(H, s)))
