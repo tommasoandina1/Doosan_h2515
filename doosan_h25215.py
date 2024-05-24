@@ -4,8 +4,11 @@ import numpy as np
 import casadi as cs
 #import icub_models
 from math import sqrt
+#lol
+import matplotlib.pyplot as plt
 
-urdf_path =  "/Users/tommasoandina/Doosan_h2515-1/h2515.blue.urdf" 
+
+urdf_path =  "/Users/tommasoandina/Doosan_h2515/h2515.blue.urdf" 
 # The joint list
 joints_name_list = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
 # Specify the root link
@@ -14,7 +17,7 @@ root_link = 'base'
 kinDyn = KinDynComputations(urdf_path, joints_name_list, root_link)
 num_dof = kinDyn.NDoF
 
-#lol
+
 H = cs.SX.sym('H', 4, 4)
 # The joint values
 s = cs.SX.sym('s', num_dof)
@@ -77,7 +80,7 @@ class Simulator:
 
 
 #Valori randomici
-q_des = np.array([0.1, 0.2 , 0.5, 0.2, 0.1, 0])
+q_des = np.array([0.1, 0.2 , 0.25, 0.2, 0.1, 0.0])
 H_b = np.eye(4)
 
 v_b = np.zeros(6)
@@ -91,18 +94,18 @@ s_dot = (np.random.rand(len(joints_name_list)) - 0.5) * 5
 M = kinDyn.mass_matrix_fun()
 M2 = cs.DM(M(H_b, s))
 M2 = M2[6:, 6:]
-print('Mass Matrix', M2)
+
 
 h = kinDyn.bias_force_fun()
 h2 = cs.DM(h(H_b, s, v_b, s_dot))
 
 
 h2 = h2[6:]
-print('bias force', h2)
+
 
 q = np.zeros(num_dof)
 
-kp = 0.1 
+kp = 0.1
 kd = 2*sqrt(kp)
 dt = 1.0 / 16.0 * 1e-3
 total_time = 2.0 * 1e-3
@@ -119,7 +122,7 @@ ctrl = Controller(kp, kd, dt, q_des)
 simu = Simulator(q, dt, dq, ddq)
 
 q_des_np = cs.DM(q_des).full().flatten()
-print(q_des_np)
+
 
 
 for i in range(N):
@@ -132,10 +135,14 @@ for i in range(N):
 q_des_np = cs.DM(q_des).full().flatten()
 simu_q_np = cs.DM(simu.q).full().flatten()
 
-# Calcola l'errore medio all'infinito tra i vettori NumPy
+
+
+q_des_np = cs.DM(q_des).full().flatten()
+simu_q_np = np.array(simu.q).flatten()
+
 errore_medio_infinito = np.max(np.abs(q_des_np - simu_q_np))
 
-print(q_des_np)
-print(simu_q_np)
+print("q desiderato", q_des_np)
+print("q simulato", simu_q_np)
 
 print("Errore medio all'infinito:", errore_medio_infinito)
