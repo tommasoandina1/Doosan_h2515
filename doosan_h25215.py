@@ -1,14 +1,17 @@
-from adam.casadi import KinDynComputations
-import casadi as cs
-from math import sqrt
+from adam.casadi.computations import KinDynComputations
+from adam.geometry import utils
 import numpy as np
+import casadi as cs
+#import icub_models
+from math import sqrt
 
-
-model_path = "h2515.blue.urdf" 
-joints_name_list = 'joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6' 
+urdf_path =  "/Users/tommasoandina/Doosan_h2515-1/h2515.blue.urdf" 
+# The joint list
+joints_name_list = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
+# Specify the root link
 root_link = 'base'
 
-kinDyn = KinDynComputations(model_path, joints_name_list, root_link)
+kinDyn = KinDynComputations(urdf_path, joints_name_list, root_link)
 num_dof = kinDyn.NDoF
 
 
@@ -25,38 +28,12 @@ v_b_dot = cs.SX.sym('v_b_dot', 6)
 s_ddot = cs.SX.sym('s_ddot', num_dof)
 
 # initialize
-#mass_matrix_fun = kinDyn.mass_matrix_fun()
+mass_matrix_fun = kinDyn.mass_matrix_fun()
 coriolis_term_fun = kinDyn.coriolis_term_fun()
-gravity_term_fun =  kinDyn.gravity_term_fun()
+gravity_term_fun = kinDyn.gravity_term_fun()
 bias_force_fun = kinDyn.bias_force_fun()
 Jacobian_fun = kinDyn.jacobian_fun("link6")
 
-
-
-C = coriolis_term_fun(H, s, v_b, s_dot)
-G = gravity_term_fun(H, s)
-J = Jacobian_fun(H, s)
-new_J = J[:3, :] #first three rows
-
-#Dissiaptive Force
-
-a = 40
-f_lev = cs.SX.sym('f_lev', num_dof)
-f_min = 10
-f_max = 200
-
-f = cs.linspace(f_min, f_max, 100)  # Genera 100 valori nel range [10, 200]
-
-# Calcola le forze f_vec in base alla frequenza f
-f_vec = cs.vertcat(a*120 * cs.sin(2 * cs.pi * f),
-                   a*70 * cs.sin(2 * cs.pi * f),
-                   a*40 * cs.sin(2 * cs.pi * f))
-
-# Creare una funzione per valutare le forze in base alla frequenza
-f_vec_fun = cs.Function('f_vec_fun', [f_lev], [f_vec])
-
-
-#Controll law (tau)
 
 class Controller:
     def __init__(self, kp, kd, dt, q_des):
@@ -84,62 +61,81 @@ class Simulator:
         self.dq = dq
         self.ddq = ddq
 
-    def simulate_q(self, tau, h):
-        dq = self.simulate_dq(tau, h)
+    def simulate_q(self, tau, h2):
+        dq = self.simulate_dq(tau, h2)
         self.q += self.dt * dq
         return self.q
     
-    def simulate_dq(self, tau, h):
-        self.ddq = cs.inv(M) @ (tau - h)
+    def simulate_dq(self, tau, h2):
+        self.ddq = cs.inv(M2) @ (tau - h2)
         self.dq += self.dt * self.ddq
         return self.dq
     
-    def simulate_ddq(self, M, tau, h):
-        self.ddq = cs.inv(M) @ (tau - h)
+    def simulate_ddq(self, M2, tau, h2):
+        self.ddq = cs.inv(M2) @ (tau - h2)
         return self.ddq
 
-q_0 = cs.SX.sym('q_0', num_dof)
+
+#Valori randomici
+q_des = np.array([0.1, 0.2 , 0.5, 0.2, 0.1, 0])
+H_b = np.eye(4)
+
+v_b = np.zeros(6)
+s = (np.random.rand(len(joints_name_list)) - 0.5) * 5
+s_dot = (np.random.rand(len(joints_name_list)) - 0.5) * 5
+
+
+
+
+
+M = kinDyn.mass_matrix_fun()
+M2 = cs.DM(M(H_b, s))
+M2 = M2[6:, 6:]
+print('Mass Matrix', M2)
+
+h = kinDyn.bias_force_fun()
+h2 = cs.DM(h(H_b, s, v_b, s_dot))
+
+
+h2 = h2[6:]
+print('bias force', h2)
+
+q = np.zeros(num_dof)
+
 kp = 0.1 
-kd = sqrt(kp)
+kd = 2*sqrt(kp)
 dt = 1.0 / 16.0 * 1e-3
 total_time = 2.0 * 1e-3
-q_des = cs.SX.sym('q_des', num_dof)
-position = [200, 50, 100, 250, 300, -50]
-q_des = cs.vertcat(*position)
 
-dq = cs.SX.sym('dq', num_dof)
-ddq = cs.SX.sym('ddq', num_dof)
+
+
+dq = np.zeros(num_dof)
+ddq = np.zeros(num_dof)
+
 
 N = int(total_time / dt)
 
 ctrl = Controller(kp, kd, dt, q_des)
-simu = Simulator(q_0, dt, dq, ddq)
+simu = Simulator(q, dt, dq, ddq)
+
+q_des_np = cs.DM(q_des).full().flatten()
+print(q_des_np)
+
 
 for i in range(N):
-    #print("Time", i * dt, "q =", simu.q)
-    
-    M = mass_matrix_fun(H, s)  
-    M = M[:6, :6]
-   
-
-
-    h = bias_force_fun(H, s, v_b, s_dot)  
-    h = h[:6]
-
     tau = ctrl.control(simu.q, simu.dq)
-    simu.simulate_q(tau, h)
-    simu.simulate_ddq(M, tau, h)
+    simu.simulate_q(tau, h2)
+    simu.simulate_dq(tau, h2)
+    simu.simulate_ddq(M2, tau, h2)
+   
+    
+q_des_np = cs.DM(q_des).full().flatten()
+simu_q_np = cs.DM(simu.q).full().flatten()
 
+# Calcola l'errore medio all'infinito tra i vettori NumPy
+errore_medio_infinito = np.max(np.abs(q_des_np - simu_q_np))
 
+print(q_des_np)
+print(simu_q_np)
 
-# Calcola la differenza tra q_des e q
-error_q = q_des - simu.q
-
-# Calcola la norma all'infinito dell'errore
-norm_inf_error = cs.norm_inf(error_q)
-#print(simu.q)
-#print("Norma all'infinito dell'errore tra q_des e q dopo la simulazione:", norm_inf_error)
-
-
-M = kinDyn.mass_matrix_fun()
-print('Mass matrix:\n', cs.DM(M(H, s)))
+print("Errore medio all'infinito:", errore_medio_infinito)
