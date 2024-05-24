@@ -14,7 +14,7 @@ root_link = 'base'
 kinDyn = KinDynComputations(urdf_path, joints_name_list, root_link)
 num_dof = kinDyn.NDoF
 
-
+#lol
 H = cs.SX.sym('H', 4, 4)
 # The joint values
 s = cs.SX.sym('s', num_dof)
