@@ -158,7 +158,7 @@ def simulation(k_friction):
 
         contact_force = compute_contact_force(end_effector_position, end_effector_velocity, k_friction)
         contact_force_dm = cs.DM(contact_force.flatten())
-        f_ext = external_forces(t, end_effector_position, end_effector_velocity, k_friction)
+        f_ext = external_forces(t) #, end_effector_position, end_effector_velocity, k_friction)
         f_ext_dm = cs.DM(f_ext.flatten())
 
         if np.any(np.abs(q[:, i]) > 1e10) or np.any(np.abs(dq[:, i]) > 1e10):
@@ -168,7 +168,7 @@ def simulation(k_friction):
         # RK4 integration
         def acceleration(dq_current):
             try:
-                result = np.array(cs.solve(M2, tau[:, i] - h2 + cs.mtimes(J_full.T, f_ext_dm[:3]) + cs.mtimes(J_full.T, contact_force_dm[:3]) - cs.mtimes(M2, cs.DM(dq_current)))).reshape(-1)
+                result = np.array(cs.solve(M2, tau[:, i] - h2 + cs.mtimes(J_full.T, f_ext_dm[:3]) + cs.mtimes(J_full.T, contact_force_dm[:3]))).reshape(-1)
                 return np.clip(result, -1e10, 1e10)
             except Exception as e:
                 print(f"Error in acceleration calculation at step {i}: {e}")
