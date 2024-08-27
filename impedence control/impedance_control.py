@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from numpy.linalg import norm
 import time
 import sys
+import pickle
+from scipy.interpolate import CubicSpline
 
 # Configuration
 urdf_path = "/Users/tommasoandina/Desktop/Doosan_h2515-main/model.urdf"
@@ -25,10 +27,10 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 
 # Simulation parameters
 conf = {
-    'T_SIMULATION': 8.0,  # Total simulation time
-    'dt': 1/10000,  # Reduced dt to 1/10000 to improve stability
+    'T_SIMULATION': 8.0,  
+    'dt': 1/16000, 
     'PRINT_T': 1.0,
-    'simulate_real_time': False,  # Disable real-time simulation to speed up the process
+    'simulate_real_time': False,  
     'kp_j': 100.0,
     'kd_j': 20.0,
     'q0': np.zeros(num_dof)
@@ -84,36 +86,27 @@ class Simulator:
 
 simu = Simulator()
 
-# Function to generate the reference trajectory using sinusoids
+# Function to generate the reference trajectory using cubic splines
 def generate_trajectory(t):
-    if t <= 2.0:
-        # Sinusoidal interpolation from (0,0,0) to (1,1,1) in 2 seconds
-        freq = 1 / (2 * np.pi)
-        amp = np.array([1.0, 1.0, 1.0])
-        x0 = np.array([0.0, 0.0, 0.0])
-        x_ref = x0 + amp * np.sin(2 * np.pi * freq * t)
-        dx_ref = amp * 2 * np.pi * freq * np.cos(2 * np.pi * freq * t)
-        ddx_ref = -amp * (2 * np.pi * freq)**2 * np.sin(2 * np.pi * freq * t)
-    elif t <= 5.0:
-        # Sinusoidal interpolation from (1,1,1) to (1,2,0.9) in 3 seconds
-        freq = 1 / (3 * np.pi)
-        amp = np.array([0.0, 1.0, -0.1])
-        x0 = np.array([1.0, 1.0, 1.0])
-        x_ref = x0 + amp * np.sin(2 * np.pi * freq * (t - 2.0))
-        dx_ref = amp * 2 * np.pi * freq * np.cos(2 * np.pi * freq * (t - 2.0))
-        ddx_ref = -amp * (2 * np.pi * freq)**2 * np.sin(2 * np.pi * freq * (t - 2.0))
-    elif t <= 8.0:
-        # Sinusoidal interpolation from (1,2,0.9) to (1,1,0.9) in 3 seconds
-        freq = 1 / (3 * np.pi)
-        amp = np.array([0.0, -1.0, 0.0])
-        x0 = np.array([1.0, 2.0, 0.9])
-        x_ref = x0 + amp * np.sin(2 * np.pi * freq * (t - 5.0))
-        dx_ref = amp * 2 * np.pi * freq * np.cos(2 * np.pi * freq * (t - 5.0))
-        ddx_ref = -amp * (2 * np.pi * freq)**2 * np.sin(2 * np.pi * freq * (t - 5.0))
-    else:
-        x_ref = np.array([1.0, 1.0, 0.9])
-        dx_ref = np.zeros(3)
-        ddx_ref = np.zeros(3)
+    # Define key points for the trajectory
+    t_points = [0.0, 2.0, 5.0, 8.0]
+    x_points = [
+        [0.0, 0.0, 0.0],  # at t=0.0
+        [1.0, 1.0, 1.0],  # at t=2.0
+        [1.0, 2.0, 0.9],  # at t=5.0
+        [1.0, 1.0, 0.9]   # at t=8.0
+    ]
+    
+    # Create cubic splines for position, velocity, and acceleration
+    x_spline = CubicSpline(t_points, [p[0] for p in x_points], bc_type='clamped')
+    y_spline = CubicSpline(t_points, [p[1] for p in x_points], bc_type='clamped')
+    z_spline = CubicSpline(t_points, [p[2] for p in x_points], bc_type='clamped')
+    
+    # Compute reference position, velocity, and acceleration
+    x_ref = np.array([x_spline(t), y_spline(t), z_spline(t)])
+    dx_ref = np.array([x_spline(t, 1), y_spline(t, 1), z_spline(t, 1)])
+    ddx_ref = np.array([x_spline(t, 2), y_spline(t, 2), z_spline(t, 2)])
+    
     return x_ref, dx_ref, ddx_ref
 
 # Main simulation loop
@@ -310,15 +303,8 @@ for (test_id, test) in enumerate(tests):
 
     print('Average tracking error %.3f m\n' % (tracking_err))
 
-# Plot results
-plt.figure()
-plt.plot([err['value'] for err in tracking_err_osc], label='OSC')
-plt.plot([err['value'] for err in tracking_err_ic], label='IC')
-plt.xlabel('Test ID')
-plt.ylabel('Tracking Error (m)')
-plt.legend()
-plt.show()
 
+2
 # Plot joint trajectories
 (f, ax) = plt.subplots(num_dof, 1, figsize=(10, 20))
 tt = np.arange(0.0, N * conf['dt'], conf['dt'])
@@ -339,3 +325,5 @@ plt.ylabel('Position [m]')
 plt.legend()
 plt.show()
 
+# Save the values of q to a text file
+np.savetxt('/Users/tommasoandina/Desktop/q_values.txt', q)
