@@ -4,6 +4,7 @@ from adam.casadi.computations import KinDynComputations
 import matplotlib.pyplot as plt
 from numpy.linalg import norm
 
+
 # Configuration
 urdf_path = "/Users/tommasoandina/Desktop/Doosan_h2515-main/model.urdf"
 joints_name_list = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
