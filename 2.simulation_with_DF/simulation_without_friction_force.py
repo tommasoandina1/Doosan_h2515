@@ -3,7 +3,7 @@ import casadi as cs
 from adam.casadi.computations import KinDynComputations
 import matplotlib.pyplot as plt
 from numpy.linalg import norm
-
+#Simulazione in cui il si utilizza il grinder senza applicarlo alla superficie, si vede solo l'effetto delle delle sinusoidi
 
 # Configuration
 urdf_path = "/Users/tommasoandina/Desktop/Doosan_h2515-main/model.urdf"
