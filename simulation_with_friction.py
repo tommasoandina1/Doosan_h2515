@@ -63,7 +63,7 @@ surface_height = 1
 def compute_contact_force(position, velocity, k_friction):
     k_contact = 3e4  # Contact stiffness
     d_contact = np.sqrt(k_contact)  # Contact damping
-    mu = 1
+    mu = 0.3
 
     if position[2] < surface_height:
         force_z = k_contact * (surface_height - position[2]) - d_contact * velocity[2]
@@ -78,6 +78,7 @@ def compute_contact_force(position, velocity, k_friction):
         return np.array([friction_force[0], friction_force[1], force_z])
     else:
         return np.zeros(3)
+
 
 # Define external forces as a summation of sinusoids with given amplitudes
 def external_forces(t):
@@ -120,79 +121,81 @@ def simulation(k_friction):
         J_full = jacobian_fun(H_b_current, q_current)[0:3, 6:]
         end_effector_position = np.array(forward_kinematics_fun(H_b_current, q_current))[:3, 3]
         end_effector_velocity = J_full @ dq_current
-        contact_force = compute_contact_force(end_effector_position, end_effector_velocity, k_friction)
+        contact_force = compute_contact_force(end_effector_position, end_effector_velocity, k_friction, surface_height)
         f_ext = external_forces(t)
         try:
             result = np.linalg.solve(M2, tau_current - h2 + J_full.T @ f_ext[:3] + J_full.T @ contact_force[:3])
-            return np.clip(result.flatten(), -1e10, 1e10), contact_force[:2], end_effector_position, end_effector_velocity, contact_force
+            return (
+                np.clip(result.flatten(), -1e10, 1e10), 
+                contact_force[:2], 
+                end_effector_position, 
+                end_effector_velocity, 
+                contact_force
+            )
         except Exception as e:
             return np.zeros_like(dq_current), np.zeros(2), np.zeros(3), np.zeros(3), np.zeros(3)
+
+    def rk4_step(dq, q, tau, H_b, v_b, t, dt):
+        # k1
+        acc1, _, _, _, _ = acceleration(dq, q, tau, H_b, v_b, t)
+        k1_dq = dt * acc1
+        k1_q = dt * dq
+
+        # k2
+        dq_temp = dq + 0.5 * k1_dq
+        q_temp = q + 0.5 * k1_q
+        acc2, _, _, _, _ = acceleration(dq_temp, q_temp, tau, H_b, v_b, t + 0.5 * dt)
+        k2_dq = dt * acc2
+        k2_q = dt * dq_temp
+
+        # k3
+        dq_temp = dq + 0.5 * k2_dq
+        q_temp = q + 0.5 * k2_q
+        acc3, _, _, _, _ = acceleration(dq_temp, q_temp, tau, H_b, v_b, t + 0.5 * dt)
+        k3_dq = dt * acc3
+        k3_q = dt * dq_temp
+
+        # k4
+        dq_temp = dq + k3_dq
+        q_temp = q + k3_q
+        acc4, _, end_effector_position, end_effector_velocity, _ = acceleration(dq_temp, q_temp, tau, H_b, v_b, t + dt)
+        k4_dq = dt * acc4
+        k4_q = dt * dq_temp
+
+        # Update dq and q
+        dq_next = dq + (k1_dq + 2 * k2_dq + 2 * k3_dq + k4_dq) / 6
+        q_next = q + (k1_q + 2 * k2_q + 2 * k3_q + k4_q) / 6
+
+        return dq_next, q_next, end_effector_position, end_effector_velocity
 
     for i in range(N):
         t = i * dt
         
         q_des_current = get_q_des_current(i)
-    
         controller.q_des = q_des_current
 
         # Control
         tau[:, i] = controller.control(q[:, i], dq[:, i])
 
-        # Dynamics
-        acc, friction_force, end_effector_position, end_effector_velocity, contact_force = acceleration(dq[:, i], q[:, i], tau[:, i], H_b, v_b, t)
-        k1 = dt * acc
-        friction_forces.append(friction_force)
-
-        # Recalculate dynamics for k2
-        q_temp = q[:, i] + 0.5 * dt * dq[:, i]
-        dq_temp = dq[:, i] + 0.5 * k1
-        acc, _, _, _, _ = acceleration(dq_temp, q_temp, tau[:, i], H_b, v_b, t + 0.5 * dt)
-        k2 = dt * acc
-
-        # Recalculate dynamics for k3
-        q_temp = q[:, i] + 0.5 * dt * dq_temp
-        dq_temp = dq[:, i] + 0.5 * k2
-        acc, _, _, _, _ = acceleration(dq_temp, q_temp, tau[:, i], H_b, v_b, t + 0.5 * dt)
-        k3 = dt * acc
-
-        # Recalculate dynamics for k4
-        q_temp = q[:, i] + dt * dq_temp
-        dq_temp = dq[:, i] + k3
-        acc, _, _, _, _ = acceleration(dq_temp, q_temp, tau[:, i], H_b, v_b, t + dt)
-        k4 = dt * acc
-
-        # Debug prints
-        print(f"Step {i}:")
-        print(f"k1: {k1}")
-        print(f"k2: {k2}")
-        print(f"k3: {k3}")
-        print(f"k4: {k4}")
-        print(f"tau: {tau[:, i]}")
-        print(f"q: {q[:, i]}")
-        print(f"dq: {dq[:, i]}")
-        print(f"end_effector_position: {end_effector_position}")
-        print(f"end_effector_velocity: {end_effector_velocity}")
-        print(f"contact_force: {contact_force}")
+        # Apply RK4 integration step
+        dq[:, i+1], q[:, i+1], end_effector_position, end_effector_velocity = rk4_step(dq[:, i], q[:, i], tau[:, i], H_b, v_b, t, dt)
 
         # Check for large values and stop the simulation if detected
-        if np.any(np.abs(q[:, i]) > 1e3) or np.any(np.abs(dq[:, i]) > 1e3):
+        if np.any(np.abs(q[:, i+1]) > 1e3) or np.any(np.abs(dq[:, i+1]) > 1e3):
             print(f"Large values detected at step {i}. Stopping simulation.")
             break
-
-        # Update dq and q
-        dq[:, i+1] = np.clip(dq[:, i] + (k1 + 2*k2 + 2*k3 + k4) / 6, -1e10, 1e10)
-        q[:, i+1] = np.clip(q[:, i] + dt * dq[:, i], -1e10, 1e10)
 
         if np.any(np.isnan(dq[:, i+1])) or np.any(np.isnan(q[:, i+1])) or np.any(np.abs(dq[:, i+1]) > 1e10) or np.any(np.abs(q[:, i+1]) > 1e10):
             print(f"Numerical instability detected at step {i}")
             break
 
+        # Store end-effector data for analysis
         if 2 <= t:
             velocities.append(np.linalg.norm(dq[:, i+1]))
             positions.append(end_effector_position[2])
-            J_full = jacobian_fun(H_b, q[:, i])[0:3, 6:]
-            end_effector_velocity = J_full @ dq[:, i]
             end_effector_velocities.append(end_effector_velocity)
+            ee_positions.append(end_effector_position)
+            ee_velocities.append(end_effector_velocity)
 
     mean_velocity = end_effector_velocities[-1] if end_effector_velocities else 0
     return q, dq, k_friction, mean_velocity, end_effector_velocity, ee_positions, ee_velocities, friction_forces
