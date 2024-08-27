@@ -4,6 +4,10 @@ from adam.casadi.computations import KinDynComputations
 import matplotlib.pyplot as plt
 from numpy.linalg import norm
 
+# Percorso del file contenente i valori di q
+file_path = '/Users/tommasoandina/Desktop/q_values.txt'
+q_des = np.loadtxt(file_path)
+
 # Configuration
 urdf_path = "/Users/tommasoandina/Desktop/Doosan_h2515-main/model.urdf"
 joints_name_list = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
@@ -14,10 +18,15 @@ end_effector = 'link6'
 kinDyn = KinDynComputations(urdf_path, joints_name_list, root_link)
 num_dof = kinDyn.NDoF
 
+
+def get_q_des_current(index):
+    return q_des[:, index]
+
+
 # Simulation parameters
 T_SIMULATION = 8  # Total simulation time in seconds
 dt = 1/16000  # Time step in seconds
-N = int(T_SIMULATION / dt)  # Number of time steps
+N = 128001  # Number of time steps
 
 # Initial conditions
 q0 = np.zeros(num_dof)
@@ -29,18 +38,6 @@ v_b = np.zeros(6)
 optimal_kp = 1000
 optimal_kd = 2 * np.sqrt(optimal_kp)
 
-
-# Initial position (0 seconds)
-q_initial = np.array([0, 0, 0, 0, 0, 0])
-
-# Position at 2 seconds (surface contact)
-q_des = np.array([0.1044, 0.1051, -0.1153, -0.1950, 0.1942, 0.0008])
-
-# Position from 2 to 5 seconds (vary x and y, keep z constant)
-q_des1 = np.array([0.2410, 0.5159, -0.5571, -0.9486, 0.4593, 0.0333])
-
-# Final position (8 seconds, same as 2 seconds)
-q_des2 =  np.array([0.1030, 0.1035, -0.1264, -0.1922, 0.1916, 0.0006])
 
 # Dynamics functions
 mass_matrix_fun = kinDyn.mass_matrix_fun()
@@ -64,7 +61,7 @@ class PDController:
 surface_height = 1
 
 def compute_contact_force(position, velocity, k_friction):
-    k_contact = 1000  # Contact stiffness
+    k_contact = 3e4  # Contact stiffness
     d_contact = np.sqrt(k_contact)  # Contact damping
     mu = 0.3
 
@@ -79,12 +76,8 @@ def compute_contact_force(position, velocity, k_friction):
             friction_force = friction_magnitude * friction_direction
         else:
             friction_force = np.zeros(2)
-
-        
-        #print(f"Contact force: {np.array([friction_force[0], friction_force[1], force_z])}")
         return np.array([friction_force[0], friction_force[1], force_z])
     else:
-       #print("No contact")
         return np.zeros(3)
 
 
@@ -120,8 +113,6 @@ dq[:, 0] = dq0
 
 
 
-
-
 # Initialize tracking error
 min_tracking_error = float('inf')
 error = float('inf')
@@ -131,7 +122,7 @@ def simulation(k_friction):
     velocities = []
     positions = []
     end_effector_velocities = []
-    friction_forces = []  # Change this line from () to []
+    friction_forces = []  
     ee_positions = []
     ee_velocities = []
 
@@ -145,14 +136,8 @@ def simulation(k_friction):
     for i in range(N):
         t = i * dt
         
-
-        if t < 2:
-            q_des_current = q_initial + (q_des - q_initial) * (t / 2)
-        elif t < 5:
-            q_des_current = q_des1
-        else:
-            q_des_current = q_des1 + (q_des2 - q_des1) * ((t - 5) / 3)
-
+        q_des_current = get_q_des_current(i)
+    
         controller.q_des = q_des_current
 
         # Control
@@ -184,16 +169,6 @@ def simulation(k_friction):
         if np.any(np.abs(q[:, i]) > 1e10) or np.any(np.abs(dq[:, i]) > 1e10):
             print(f"Extremely large values detected at step {i}. Stopping simulation.")
             break
-
-
-        # RK4 integration
-        #def acceleration(dq_current):
-            #try:
-              #  result = np.linalg.solve(M2, tau[:, i] - h2 + J_full.T @ f_ext[:3] + J_full.T @ contact_force[:3])
-             #   return np.clip(result.flatten(), -1e10, 1e10)  # Flatten the result to ensure 1D array
-            #except Exception as e:
-        
-                #return np.zeros_like(dq_current)
             
 
         acc, friction_force = acceleration(dq[:, i])
@@ -209,17 +184,6 @@ def simulation(k_friction):
     # Update dq and q
         dq[:, i+1] = np.clip(dq[:, i] + (k1 + 2*k2 + 2*k3 + k4) / 6, -1e10, 1e10)
         q[:, i+1] = np.clip(q[:, i] + dt * dq[:, i], -1e10, 1e10)
-# Update dq and q
-        #dq[:, i+1] = np.clip(dq[:, i] + (k1 + 2*k2 + 2*k3 + k4) / 6, -1e10, 1e10)
-        #q[:, i+1] = np.clip(q[:, i] + dt * dq[:, i], -1e10, 1e10)
-#        k1 = dt * acceleration(dq[:, i])
- #       k2 = dt * acceleration(dq[:, i] + 0.5 * k1)
-  #      k3 = dt * acceleration(dq[:, i] + 0.5 * k2)
-   #     k4 = dt * acceleration(dq[:, i] + k3)
-
-        # Update dq and q
-        dq[:, i+1] = np.clip(dq[:, i] + (k1 + 2*k2 + 2*k3 + k4) / 6, -1e10, 1e10)
-        q[:, i+1] = np.clip(q[:, i] + dt * dq[:, i], -1e10, 1e10)
 
         if np.any(np.isnan(dq[:, i+1])) or np.any(np.isnan(q[:, i+1])) or np.any(np.abs(dq[:, i+1]) > 1e10) or np.any(np.abs(q[:, i+1]) > 1e10):
             print(f"Numerical instability detected at step {i}")
@@ -228,16 +192,10 @@ def simulation(k_friction):
         if 2 <= t <= 8:
             velocities.append(np.linalg.norm(dq[:, i+1]))
             positions.append(end_effector_position[2])
-        
-        if t >= 2:
             J_full = jacobian_fun(H_b, q[:, i])[0:3, 6:]
             end_effector_velocity = J_full @ dq[:, i]
             end_effector_velocities.append(end_effector_velocity)
-
-            if end_effector_position[2] < surface_height:
-                #stampa secondo e contatto
-                print(f"{t:.2f} s: contatto")
-   
+        
 
             
 
@@ -247,62 +205,29 @@ def simulation(k_friction):
     return q, dq, k_friction, mean_velocity, end_effector_velocity, ee_positions, ee_velocities, friction_forces
     
 
-# After running the simulation
-q, dq, k_friction, mean_velocity, end_effector_velocity, ee_positions, ee_velocities , friction_forces= simulation(1200)
-
-# Plot end-effector position
-plt.figure(figsize=(12, 8))
-ee_positions = np.array(ee_positions)
-plt.plot(np.arange(N)*dt, ee_positions[:, 0], label='X')
-plt.plot(np.arange(N)*dt, ee_positions[:, 1], label='Y')
-plt.plot(np.arange(N)*dt, ee_positions[:, 2], label='Z')
-plt.xlabel('Time [s]')
-plt.ylabel('Position [m]')
-plt.title('End-Effector Position')
-plt.legend()
-plt.grid(True)
-plt.show()
-
-# Plot end-effector velocity
-plt.figure(figsize=(12, 8))
-ee_velocities = np.array(ee_velocities)
-plt.plot(np.arange(N)*dt, ee_velocities[:, 0], label='X')
-plt.plot(np.arange(N)*dt, ee_velocities[:, 1], label='Y')
-plt.plot(np.arange(N)*dt, ee_velocities[:, 2], label='Z')
-plt.xlabel('Time [s]')
-plt.ylabel('Velocity [m/s]')
-plt.title('End-Effector Velocity')
-plt.legend()
-plt.grid(True)
-plt.show()
-
-
-# After running the simulation
-friction_forces = np.array(friction_forces)
-
-plt.figure(figsize=(12, 8))
-plt.plot(np.arange(N)*dt, friction_forces[:, 0], label='X')
-plt.plot(np.arange(N)*dt, friction_forces[:, 1], label='Y')
-plt.xlabel('Time [s]')
-plt.ylabel('Friction Force [N]')
-plt.title('Friction Force Contribution')
-plt.legend()
-plt.grid(True)
-plt.show()
-
-
-def range_k_friction2(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_iterations=1000):
+def range_k_friction(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_iterations=1000):
     k_friction_values = np.linspace(100, max_k, num_steps)
     k_max = None
-    k_min = 3
+    k_min = None
 
     for iteration, k_friction in enumerate(k_friction_values):
         if iteration >= max_iterations:
             print(f"Reached maximum iterations ({max_iterations}). Stopping search.")
             break
 
-        _, _, _, mean_velocity, _, _, _ = simulation(k_friction)
+        # Escludi il valore problematico di k_friction
+        if k_friction == 12800:
+            print(f"Skipping k_friction value: {k_friction} due to known instability.")
+            continue
+
+        try:
+            _, _, _, mean_velocity, _, _, _, _ = simulation(k_friction)
+        except ValueError as e:
+            print(f"Numerical instability detected at k_friction: {k_friction}. Error: {e}")
+            continue
+
         print(f"Iteration {iteration + 1}, k_friction: {k_friction}, Mean velocity: {mean_velocity}")
+
         if k_max is None and np.linalg.norm(mean_velocity) < velocity_threshold:
             k_max = k_friction
         elif k_min is None and np.linalg.norm(mean_velocity) > velocity_threshold:
@@ -311,68 +236,24 @@ def range_k_friction2(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_iter
         if k_max is not None and k_min is not None:
             break
 
+    # Esegui un'iterazione aggiuntiva per k_min con k_friction = 0
+    try:
+        _, _, _, mean_velocity_zero, _, _, _, _ = simulation(0)
+        _, _, _, mean_velocity_k_min, _, _, _, _ = simulation(k_min)
+
+        if np.abs(np.linalg.norm(mean_velocity_zero) - np.linalg.norm(mean_velocity_k_min)) < 0.1:
+            print(f"Mean velocity with k_friction = 0: {mean_velocity_zero}")
+            print(f"Mean velocity with k_min: {mean_velocity_k_min}")
+        else:
+            print("The difference in mean velocities is greater than 0.1")
+    except ValueError as e:
+        print(f"Numerical instability detected during additional iteration. Error: {e}")
+
     return k_max, k_min
 
-
-print("Starting search for k_max and k_min...")
-
-k_max, k_min = range_k_friction2()
-print(f"Final k_max: {k_max}, k_min: {k_min}")
-'''
-def range_k_friction2(velocity_threshold=0.01, max_k=1e4, num_steps=10):
-    k_friction_values = np.linspace(100, max_k, num_steps)
-    #_, _, _, frictionless_velocity, _ = simulation(0)
-    k_max = None
-    k_min = 3 #None
-
-    for k_friction in k_friction_values:
-        _, _, _, mean_velocity, _ = simulation(k_friction)
-        if k_max is None and mean_velocity < velocity_threshold:
-            k_max = k_friction
-            print(f"Found k_max: {k_friction}, Mean velocity: {mean_velocity}")
-        
-
-        if k_min is None and frictionless_velocity - mean_velocity < velocity_threshold:
-            k_min = k_friction
-            print(f"Found k_min: {k_friction}, Mean velocity: {mean_velocity}")
-
-
-        # If both k_max and k_min are found, no need to continue
-        if k_max is not None and k_min is not None:
-            break
-        #k_min = 3
-    
-    return k_max, k_min
-
-# Call the function and print results
-k_max, k_min = range_k_friction2()
-print(f"Final k_max: {k_max}, k_min: {k_min}")
-
-'''
-
-
-'''
-
-# Define k_friction_values
-if k_min is not None and k_max is not None:
-    k_friction_values = np.logspace(np.log10(k_min), np.log10(k_max), 100)
-else:
-    k_friction_values = np.logspace(-1, 3, 100)  # Default range if k_min or k_max is None
-
-# Plot k_friction range vs mean velocity
-plt.figure(figsize=(12, 8))
-plt.plot(k_friction_values, [simulation(k)[3] for k in k_friction_values], label='Mean Velocity')
-if k_max is not None:
-    plt.axvline(k_max, color='r', linestyle='--', label=f'k_max = {k_max:.2f}')
-if k_min is not None:
-    plt.axvline(k_min, color='g', linestyle='--', label=f'k_min = {k_min:.2f}')
-plt.xlabel('k_friction')
-plt.ylabel('Mean Velocity')
-plt.title('k_friction Range vs Mean Velocity')
-plt.legend()
-plt.grid(True)
-plt.xscale('log')
-plt.show()
+# Esempio di utilizzo della funzione range_k_friction
+k_max, k_min = range_k_friction(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_iterations=1000)
+print(f"Found k_max: {k_max}, k_min: {k_min}")
 
 
 # Calculate tracking error
@@ -397,7 +278,5 @@ plt.xlabel('Time [s]')
 plt.tight_layout()
 plt.show()
 
-print(f"Optimal kp: {optimal_kp} with tracking error {min_tracking_error}")
-print(f"Optimal kd: {optimal_kd} with infinity norm error {error}")
+
 print("Simulation completed.")
-'''
