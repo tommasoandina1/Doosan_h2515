@@ -63,11 +63,10 @@ surface_height = 1
 def compute_contact_force(position, velocity, k_friction):
     k_contact = 3e4  # Contact stiffness
     d_contact = np.sqrt(k_contact)  # Contact damping
-    mu = 0.3
+    mu = 1
 
     if position[2] < surface_height:
         force_z = k_contact * (surface_height - position[2]) - d_contact * velocity[2]
-        
         tangential_velocity = velocity[:2]
         tangential_speed = np.linalg.norm(tangential_velocity)
         if tangential_speed > 1e-6:
@@ -80,13 +79,6 @@ def compute_contact_force(position, velocity, k_friction):
     else:
         return np.zeros(3)
 
-
-
-
-
-
-
-
 # Define external forces as a summation of sinusoids with given amplitudes
 def external_forces(t):
     frequencies = np.arange(10, 201, 1)  # Frequencies from 10 to 200 incremented by 1
@@ -97,7 +89,6 @@ def external_forces(t):
         forces[1] += amplitudes[1] * np.sin(2 * np.pi * freq * t)  # y-axis
         forces[2] += amplitudes[2] * np.sin(2 * np.pi * freq * t)  # z-axis
 
-    
     return forces
 
 # Initialize controller with optimal parameters
@@ -111,12 +102,9 @@ tau = np.zeros((num_dof, N))
 q[:, 0] = q0
 dq[:, 0] = dq0
 
-
-
 # Initialize tracking error
 min_tracking_error = float('inf')
 error = float('inf')
-
 
 def simulation(k_friction):
     velocities = []
@@ -126,12 +114,19 @@ def simulation(k_friction):
     ee_positions = []
     ee_velocities = []
 
-    def acceleration(dq_current):
+    def acceleration(dq_current, q_current, tau_current, H_b_current, v_b_current, t):
+        M2 = mass_matrix_fun(H_b_current, q_current)[6:, 6:]
+        h2 = bias_force_fun(H_b_current, q_current, v_b_current, dq_current)[6:]
+        J_full = jacobian_fun(H_b_current, q_current)[0:3, 6:]
+        end_effector_position = np.array(forward_kinematics_fun(H_b_current, q_current))[:3, 3]
+        end_effector_velocity = J_full @ dq_current
+        contact_force = compute_contact_force(end_effector_position, end_effector_velocity, k_friction)
+        f_ext = external_forces(t)
         try:
-            result = np.linalg.solve(M2, tau[:, i] - h2 + J_full.T @ f_ext[:3] + J_full.T @ contact_force[:3])
-            return np.clip(result.flatten(), -1e10, 1e10), contact_force[:2]
+            result = np.linalg.solve(M2, tau_current - h2 + J_full.T @ f_ext[:3] + J_full.T @ contact_force[:3])
+            return np.clip(result.flatten(), -1e10, 1e10), contact_force[:2], end_effector_position, end_effector_velocity, contact_force
         except Exception as e:
-            return np.zeros_like(dq_current), np.zeros(2)
+            return np.zeros_like(dq_current), np.zeros(2), np.zeros(3), np.zeros(3), np.zeros(3)
 
     for i in range(N):
         t = i * dt
@@ -144,44 +139,47 @@ def simulation(k_friction):
         tau[:, i] = controller.control(q[:, i], dq[:, i])
 
         # Dynamics
-        M2 = mass_matrix_fun(H_b, q[:, i])[6:, 6:]
-        h2 = bias_force_fun(H_b, q[:, i], v_b, dq[:, i])[6:]
-        J_full = jacobian_fun(H_b, q[:, i])[0:3, 6:]
-
-
-
-        # External forces
-        end_effector_position = np.array(forward_kinematics_fun(H_b, q[:, i]))[:3, 3]
-        end_effector_velocity = J_full @ dq[:, i]
-        
-        ee_positions.append(end_effector_position)
-        ee_velocities.append(end_effector_velocity)
-       
-        
-    
-
-        contact_force = compute_contact_force(end_effector_position, end_effector_velocity, k_friction)
-        f_ext = external_forces(t)
-    
-        acc, friction_force = acceleration(dq[:, i])
-        friction_forces.append(friction_force)
-
-        if np.any(np.abs(q[:, i]) > 1e10) or np.any(np.abs(dq[:, i]) > 1e10):
-            print(f"Extremely large values detected at step {i}. Stopping simulation.")
-            break
-            
-
-        acc, friction_force = acceleration(dq[:, i])
+        acc, friction_force, end_effector_position, end_effector_velocity, contact_force = acceleration(dq[:, i], q[:, i], tau[:, i], H_b, v_b, t)
         k1 = dt * acc
         friction_forces.append(friction_force)
-        acc, _ = acceleration(dq[:, i] + 0.5 * k1)
+
+        # Recalculate dynamics for k2
+        q_temp = q[:, i] + 0.5 * dt * dq[:, i]
+        dq_temp = dq[:, i] + 0.5 * k1
+        acc, _, _, _, _ = acceleration(dq_temp, q_temp, tau[:, i], H_b, v_b, t + 0.5 * dt)
         k2 = dt * acc
-        acc, _ = acceleration(dq[:, i] + 0.5 * k2)
+
+        # Recalculate dynamics for k3
+        q_temp = q[:, i] + 0.5 * dt * dq_temp
+        dq_temp = dq[:, i] + 0.5 * k2
+        acc, _, _, _, _ = acceleration(dq_temp, q_temp, tau[:, i], H_b, v_b, t + 0.5 * dt)
         k3 = dt * acc
-        acc, _ = acceleration(dq[:, i] + k3)
+
+        # Recalculate dynamics for k4
+        q_temp = q[:, i] + dt * dq_temp
+        dq_temp = dq[:, i] + k3
+        acc, _, _, _, _ = acceleration(dq_temp, q_temp, tau[:, i], H_b, v_b, t + dt)
         k4 = dt * acc
 
-    # Update dq and q
+        # Debug prints
+        print(f"Step {i}:")
+        print(f"k1: {k1}")
+        print(f"k2: {k2}")
+        print(f"k3: {k3}")
+        print(f"k4: {k4}")
+        print(f"tau: {tau[:, i]}")
+        print(f"q: {q[:, i]}")
+        print(f"dq: {dq[:, i]}")
+        print(f"end_effector_position: {end_effector_position}")
+        print(f"end_effector_velocity: {end_effector_velocity}")
+        print(f"contact_force: {contact_force}")
+
+        # Check for large values and stop the simulation if detected
+        if np.any(np.abs(q[:, i]) > 1e3) or np.any(np.abs(dq[:, i]) > 1e3):
+            print(f"Large values detected at step {i}. Stopping simulation.")
+            break
+
+        # Update dq and q
         dq[:, i+1] = np.clip(dq[:, i] + (k1 + 2*k2 + 2*k3 + k4) / 6, -1e10, 1e10)
         q[:, i+1] = np.clip(q[:, i] + dt * dq[:, i], -1e10, 1e10)
 
@@ -189,26 +187,21 @@ def simulation(k_friction):
             print(f"Numerical instability detected at step {i}")
             break
 
-        if 2 <= t <= 8:
+        if 2 <= t:
             velocities.append(np.linalg.norm(dq[:, i+1]))
             positions.append(end_effector_position[2])
             J_full = jacobian_fun(H_b, q[:, i])[0:3, 6:]
             end_effector_velocity = J_full @ dq[:, i]
             end_effector_velocities.append(end_effector_velocity)
-        
 
-            
-
-
-    # Calcola la velocità media e la posizione media
     mean_velocity = end_effector_velocities[-1] if end_effector_velocities else 0
     return q, dq, k_friction, mean_velocity, end_effector_velocity, ee_positions, ee_velocities, friction_forces
-    
 
 def range_k_friction(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_iterations=1000):
     k_friction_values = np.linspace(100, max_k, num_steps)
     k_max = None
     k_min = None
+    all_friction_forces = []
 
     for iteration, k_friction in enumerate(k_friction_values):
         if iteration >= max_iterations:
@@ -221,7 +214,8 @@ def range_k_friction(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_itera
             continue
 
         try:
-            _, _, _, mean_velocity, _, _, _, _ = simulation(k_friction)
+            _, _, _, mean_velocity, _, _, _, friction_forces = simulation(k_friction)
+            all_friction_forces.append((k_friction, friction_forces))
         except ValueError as e:
             print(f"Numerical instability detected at k_friction: {k_friction}. Error: {e}")
             continue
@@ -249,12 +243,23 @@ def range_k_friction(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_itera
     except ValueError as e:
         print(f"Numerical instability detected during additional iteration. Error: {e}")
 
-    return k_max, k_min
+    return k_max, k_min, all_friction_forces
 
 # Esempio di utilizzo della funzione range_k_friction
-k_max, k_min = range_k_friction(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_iterations=1000)
+k_max, k_min, all_friction_forces = range_k_friction(velocity_threshold=0.01, max_k=1e4, num_steps=10, max_iterations=1000)
 print(f"Found k_max: {k_max}, k_min: {k_min}")
 
+# Plotting the friction forces
+plt.figure(figsize=(12, 8))
+for k_friction, friction_forces in all_friction_forces:
+    friction_forces = np.array(friction_forces)
+    plt.plot(friction_forces[:, 0], label=f'k_friction={k_friction}')
+
+plt.xlabel('Time step')
+plt.ylabel('Friction force')
+plt.legend()
+plt.title('Friction forces for different k_friction values')
+plt.show()
 
 # Calculate tracking error
 tracking_error = np.linalg.norm(q_des - q[:, -1])
@@ -264,7 +269,6 @@ print(f"Maximum error (L-inf norm): {error:.4f}")
 
 if tracking_error < min_tracking_error:
     min_tracking_error = tracking_error
-
 
 # Plotting the best result
 plt.figure(figsize=(12, 8))
@@ -277,6 +281,5 @@ for j in range(num_dof):
 plt.xlabel('Time [s]')
 plt.tight_layout()
 plt.show()
-
 
 print("Simulation completed.")
