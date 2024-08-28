@@ -8,6 +8,7 @@ import time
 import sys
 import pickle
 from scipy.interpolate import CubicSpline
+from scipy.linalg import eigvals
 
 # Configuration
 urdf_path = "/Users/tommasoandina/Desktop/Doosan_h2515-main/model.urdf"
@@ -27,20 +28,17 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 
 # Simulation parameters
 conf = {
-    'T_SIMULATION': 8.0,  
-    'dt': 1/16000, 
+    'T_SIMULATION': 8.0,
+    'dt_control': 1/1000,   # Time step for controller: 1 ms
+    'dt_simulation': 1/16000,  # Time step for simulator: 1/16 ms
     'PRINT_T': 1.0,
-    'simulate_real_time': False,  
+    'simulate_real_time': False,
     'kp_j': 100.0,
     'kd_j': 20.0,
-    'q0': np.zeros(num_dof)
+    'kp': 1000.0,  # Fixed kp for the controller
+    'kd': 2 * np.sqrt(1000),  # Corresponding kd for critical damping
+    'q0': np.array([1.50882228e-04, 1.02054791e-02, 1.84429995e+00, 0.0, 0.0, 0.0])  # Initial position
 }
-
-# Placeholder for tests
-tests = [
-    {'controller': 'OSC'},
-    {'controller': 'IC'}
-]
 
 # Placeholder for simulator
 class Simulator:
@@ -52,140 +50,153 @@ class Simulator:
 
     def init(self, q0):
         self.q = q0
-        self.v = np.zeros_like(q0)  # Initialize velocities to zero
+        self.v = np.zeros_like(q0)
 
     def simulate(self, tau, dt, ndt):
-        # Runge-Kutta 4th order integration for simulation purposes
         def dynamics(q, v, tau):
-            dv = tau  # Assuming direct proportionality for simplicity
-            return dv
+            H_b = np.eye(4)
+            v_b = np.zeros(6)
+            M2 = mass_matrix_fun(H_b, q)[6:, 6:]
+            h2 = bias_force_fun(H_b, q, v_b, v)[6:]
+            ddq = np.linalg.inv(M2) @ (tau - h2)
+            return ddq
 
         for _ in range(ndt):
             k1_v = dynamics(self.q, self.v, tau) * dt
             k1_q = self.v * dt
 
-            k2_v = dynamics(self.q + 0.5 * k1_q, self.v + 0.5 * k1_v, tau) * dt
-            k2_q = (self.v + 0.5 * k1_v) * dt
+            q2 = self.q + 0.5 * k1_q
+            v2 = self.v + 0.5 * k1_v
+            k2_v = dynamics(q2, v2, tau) * dt
+            k2_q = v2 * dt
 
-            k3_v = dynamics(self.q + 0.5 * k2_q, self.v + 0.5 * k2_v, tau) * dt
-            k3_q = (self.v + 0.5 * k2_v) * dt
+            q3 = self.q + 0.5 * k2_q
+            v3 = self.v + 0.5 * k2_v
+            k3_v = dynamics(q3, v3, tau) * dt
+            k3_q = v3 * dt
 
-            k4_v = dynamics(self.q + k3_q, self.v + k3_v, tau) * dt
-            k4_q = (self.v + k3_v) * dt
+            q4 = self.q + k3_q
+            v4 = self.v + k3_v
+            k4_v = dynamics(q4, v4, tau) * dt
+            k4_q = v4 * dt
 
             self.v += (k1_v + 2 * k2_v + 2 * k3_v + k4_v) / 6
             self.q += (k1_q + 2 * k2_q + 2 * k3_q + k4_q) / 6
 
-            # Check for NaN values after integration
             if np.any(np.isnan(self.q)) or np.any(np.isnan(self.v)):
                 raise ValueError("NaN detected in simulator state after integration")
 
-            # Limit the values of q and v to avoid instability
             self.q = np.clip(self.q, -1e3, 1e3)
             self.v = np.clip(self.v, -1e3, 1e3)
 
 simu = Simulator()
 
-# Function to generate the reference trajectory using cubic splines
 def generate_trajectory(t):
-    # Define key points for the trajectory
-    t_points = [0.0, 2.0, 5.0, 8.0]
+    t_points = [0.0, 2.0, 5.0, 8.0]  # Updated to match the simulation duration
     x_points = [
-        [0.0, 0.0, 0.0],  # at t=0.0
-        [1.0, 1.0, 1.0],  # at t=2.0
-        [1.0, 2.0, 0.9],  # at t=5.0
-        [1.0, 1.0, 0.9]   # at t=8.0
+        [1.50882228e-04, 1.02054791e-02, 1.84429995e+00],  # Start point
+        [0.5, 0.7, 0.6],  # Intermediate control point
+        [1.0, 1.5, 1.2],  # Another intermediate control point
+        [1.5, 1.3, 1.0]   # End point
     ]
-    
-    # Create cubic splines for position, velocity, and acceleration
-    x_spline = CubicSpline(t_points, [p[0] for p in x_points], bc_type='clamped')
-    y_spline = CubicSpline(t_points, [p[1] for p in x_points], bc_type='clamped')
-    z_spline = CubicSpline(t_points, [p[2] for p in x_points], bc_type='clamped')
-    
-    # Compute reference position, velocity, and acceleration
+
+    # Ensure continuity by using cubic spline interpolation
+    x_spline = CubicSpline(t_points, [p[0] for p in x_points], bc_type='natural')
+    y_spline = CubicSpline(t_points, [p[1] for p in x_points], bc_type='natural')
+    z_spline = CubicSpline(t_points, [p[2] for p in x_points], bc_type='natural')
+
     x_ref = np.array([x_spline(t), y_spline(t), z_spline(t)])
     dx_ref = np.array([x_spline(t, 1), y_spline(t, 1), z_spline(t, 1)])
     ddx_ref = np.array([x_spline(t, 2), y_spline(t, 2), z_spline(t, 2)])
-    
+
     return x_ref, dx_ref, ddx_ref
 
-# Main simulation loop
+def check_stability(M2, h2, J_full):
+    try:
+        M2 = np.array(M2).astype(float)
+        h2 = np.array(h2).astype(float)
+        J_full = np.array(J_full).astype(float)
+        
+        num_dof = M2.shape[0]
+
+        if h2.ndim == 1:
+            h2 = h2.reshape(-1, 1)
+
+        A = np.block([
+            [np.zeros((num_dof, num_dof)), np.eye(num_dof)],
+            [-np.linalg.inv(M2) @ J_full.T @ J_full, -np.linalg.inv(M2) @ np.eye(num_dof)]
+        ])
+
+        eigenvalues = eigvals(A)
+        
+        if np.all(np.real(eigenvalues) < 0):
+            print("Il sistema è stabile.")
+        else:
+            print("Il sistema potrebbe essere instabile.")
+    except Exception as e:
+        print(f"Error in check_stability: {e}")
+
+tests = [
+    {'controller': 'OSC'},
+    {'controller': 'IC'}
+]
+
+# Simulazione principale con time step diversi
+kp = conf['kp']
+kd = conf['kd']
+
 tracking_err_osc = []
 tracking_err_ic = []
 
 for (test_id, test) in enumerate(tests):
     description = str(test_id) + ' Controller ' + test['controller'] + ' kp=1000'
     print(description)
-    kp = 1000  # kp is fixed at 1000
-    kd = 2 * np.sqrt(kp)
     simu.init(conf['q0'])
 
     nx, ndx = 3, 3
-    N = int(conf['T_SIMULATION'] / conf['dt'])
-    tau = np.empty((num_dof, N)) * nan
-    tau_c = np.empty((num_dof, N)) * nan
-    q = np.empty((num_dof, N + 1)) * nan
-    v = np.empty((num_dof, N + 1)) * nan
-    dv = np.empty((num_dof, N + 1)) * nan
-    x = np.empty((nx, N)) * nan
-    dx = np.empty((ndx, N)) * nan
-    ddx = np.empty((ndx, N)) * nan
-    x_ref = np.empty((nx, N)) * nan
-    dx_ref = np.empty((ndx, N)) * nan
-    ddx_ref = np.empty((ndx, N)) * nan
-    ddx_des = np.empty((ndx, N)) * nan
+    N_control = int(conf['T_SIMULATION'] / conf['dt_control'])
+    N_simulation = int(conf['dt_control'] / conf['dt_simulation'])
+    tau = np.empty((num_dof, N_control)) * nan
+    tau_c = np.empty((num_dof, N_control)) * nan
+    q = np.empty((num_dof, N_control + 1)) * nan
+    v = np.empty((num_dof, N_control + 1)) * nan
+    dv = np.empty((num_dof, N_control + 1)) * nan
+    x = np.empty((nx, N_control)) * nan
+    dx = np.empty((ndx, N_control)) * nan
+    ddx = np.empty((ndx, N_control)) * nan
+    x_ref = np.empty((nx, N_control)) * nan
+    dx_ref = np.empty((ndx, N_control)) * nan
+    ddx_ref = np.empty((ndx, N_control)) * nan
+    ddx_des = np.empty((ndx, N_control)) * nan
 
     t = 0.0
-    PRINT_N = int(conf['PRINT_T'] / conf['dt'])
+    PRINT_N = int(conf['PRINT_T'] / conf['dt_control'])
 
-    for i in range(0, N):
+    for i in range(0, N_control):
         time_start = time.time()
 
-        # set reference trajectory using sinusoidal function
         x_ref[:, i], dx_ref[:, i], ddx_ref[:, i] = generate_trajectory(t)
 
-        # read current state from simulator
-        v[:, i] = simu.v
-        q[:, i] = simu.q
+        v[:, i] = np.squeeze(simu.v)
+        q[:, i] = np.squeeze(simu.q)
 
-        # Check for NaN values in initial state
-        if np.any(np.isnan(q[:, i])) or np.any(np.isnan(v[:, i])):
-            raise ValueError(f"NaN detected in initial state at step {i}")
-
-        # Debug prints for current state
-        if i % 1000 == 0:
+        if i % PRINT_N == 0:  # Adjusted print frequency
             print(f"Step {i}:")
             print(f"q = {q[:, i]}")
             print(f"v = {v[:, i]}")
         
         try:
-            # compute mass matrix M, bias terms h
-            H_b = np.eye(4)  # Assuming H_b is the identity matrix for simplicity
-            v_b = np.zeros(6)  # Assuming v_b is zero for simplicity
-            dq = v[:, i]  # Using current velocity
-
-            # Debug prints for inputs to mass_matrix_fun
-            if i % 1000 == 0:
-                print(f"H_b = \n{H_b}")
-                print(f"q[:, i] = {q[:, i]}")
+            H_b = np.eye(4)
+            v_b = np.zeros(6)
+            dq = v[:, i]
 
             M2 = mass_matrix_fun(H_b, q[:, i])[6:, 6:]
             h2 = bias_force_fun(H_b, q[:, i], v_b, dq)[6:]
             J_full = jacobian_fun(H_b, q[:, i])[0:3, 6:]
 
-            # Debug print per la matrice di massa
-            if i % 1000 == 0:
-                print(f"M2 = \n{M2}")
-
-            # External forces
             end_effector_position = np.array(forward_kinematics_fun(H_b, q[:, i]))[:3, 3]
             end_effector_velocity = J_full @ dq
 
-            # Check for NaN values
-            if np.any(np.isnan(end_effector_position)) or np.any(np.isnan(end_effector_velocity)):
-                raise ValueError(f"NaN detected in end_effector_position or end_effector_velocity at step {i}")
-
-            # Compute dJdq manually
             dJdq = np.zeros(3)
             delta = 1e-6
             for j in range(num_dof):
@@ -197,56 +208,19 @@ for (test_id, test) in enumerate(tests):
                 J_minus = jacobian_fun(H_b, q_minus)[0:3, 6:]
                 dJdq += (J_plus - J_minus) @ dq / (2 * delta)
 
-            # Compute current end-effector position and velocity
             x[:, i] = end_effector_position
-            dx[:, i] = np.array(end_effector_velocity).flatten()  # Convert to NumPy array and flatten
+            dx[:, i] = np.array(end_effector_velocity).flatten()
 
-            # Check for NaN values
-            if np.any(np.isnan(x[:, i])) or np.any(np.isnan(dx[:, i])):
-                raise ValueError(f"NaN detected in x or dx at step {i}")
-
-            # implement your control law here
             ddx_fb = kp * (x_ref[:, i] - x[:, i]) + kd * (dx_ref[:, i] - dx[:, i])
-            
-            # Debug print for feedback acceleration
-            if i % 1000 == 0:
-                print(f"ddx_fb = {ddx_fb}")
-
-            # Check for NaN values in feedback acceleration
-            if np.any(np.isnan(ddx_fb)):
-                raise ValueError(f"NaN detected in ddx_fb at step {i}")
-
             ddx_des[:, i] = ddx_ref[:, i] + ddx_fb
-
-            # Check for invalid values before proceeding
-            if np.any(np.isnan(ddx_des[:, i])):
-                raise ValueError(f"Invalid ddx_des at step {i}: {ddx_des[:, i]}")
 
             Minv = cs.inv(M2)
             J_Minv = J_full @ Minv
             Lambda = cs.inv(J_Minv @ J_full.T)
-            
-            # Debug print for Lambda
-            if i % 1000 == 0:
-                print(f"Lambda = {Lambda}")
 
             mu = Lambda @ (J_Minv @ h2 - dJdq)
-            
-            # Debug print for mu
-            if i % 1000 == 0:
-                print(f"mu = {mu}")
-
             f = Lambda @ ddx_des[:, i] + mu
-            
-            # Debug print for f
-            if i % 1000 == 0:
-                print(f"f = {f}")
 
-            # Check for NaN values in Lambda, mu, and f
-            if np.any(np.isnan(Lambda)) or np.any(np.isnan(mu)) or np.any(np.isnan(f)):
-                raise ValueError(f"NaN detected in Lambda, mu, or f at step {i}")
-
-            # secondary task
             J_T_pinv = Lambda @ J_Minv
             NJ = np.eye(num_dof) - J_full.T @ J_T_pinv
             tau_0 = M2 @ (conf['kp_j'] * (conf['q0'] - q[:, i]) - conf['kd_j'] * v[:, i])
@@ -259,18 +233,13 @@ for (test_id, test) in enumerate(tests):
                 print('ERROR: Unknown controller', test['controller'])
                 sys.exit(0)
 
-            # send joint torques to simulator
-            simu.simulate(tau[:, i], conf['dt'], 1)
+            # Simulazione con il passo del simulatore
+            simu.simulate(tau[:, i], conf['dt_simulation'], N_simulation)
             tau_c[:, i] = simu.tau_c
             dv[:, i] = simu.dv
-            t += conf['dt']
+            t += conf['dt_control']
 
-            # Check for NaN values after simulation step
-            if np.any(np.isnan(simu.q)) or np.any(np.isnan(simu.v)):
-                raise ValueError(f"NaN detected in simulator state after simulation step {i}")
-
-            # Debug prints
-            if i % 1000 == 0:  # Print every 1000 steps for more frequent debugging
+            if i % PRINT_N == 0:
                 print(f"Step {i}:")
                 print(f"q = {q[:, i]}")
                 print(f"v = {v[:, i]}")
@@ -280,8 +249,8 @@ for (test_id, test) in enumerate(tests):
                 print()
 
             time_spent = time.time() - time_start
-            if conf['simulate_real_time'] and time_spent < conf['dt']:
-                time.sleep(conf['dt'] - time_spent)
+            if conf['simulate_real_time'] and time_spent < conf['dt_control']:
+                time.sleep(conf['dt_control'] - time_spent)
 
         except Exception as e:
             print(f"Error at step {i}: {e}")
@@ -291,8 +260,9 @@ for (test_id, test) in enumerate(tests):
             print(f"dx = {dx[:, i]}")
             print(f"ddx = {ddx[:, i]}")
             break
-    
-    tracking_err = np.sum(norm(x_ref - x, axis=0)) / N
+
+    # Calcola l'errore di tracking usando la norma all'infinito
+    tracking_err = np.max(np.linalg.norm(x_ref - x, axis=0, ord=np.inf))
     desc = test['controller'] + ' kp=1000'
     if test['controller'] == 'OSC':
         tracking_err_osc.append({'value': tracking_err, 'description': desc})
@@ -301,29 +271,30 @@ for (test_id, test) in enumerate(tests):
     else:
         print('ERROR: Unknown controller', test['controller'])
 
-    print('Average tracking error %.3f m\n' % (tracking_err))
+    print('Max tracking error (norma all\'infinito): %.3f m\n' % (tracking_err))
 
+    # Analisi di stabilità
+    check_stability(M2, h2, J_full)
 
-2
-# Plot joint trajectories
+# Plot delle Traiettorie dei Giunti
 (f, ax) = plt.subplots(num_dof, 1, figsize=(10, 20))
-tt = np.arange(0.0, N * conf['dt'], conf['dt'])
+tt = np.arange(0.0, N_control * conf['dt_control'], conf['dt_control'])
+
 for i in range(num_dof):
     ax[i].plot(tt, q[i, :-1], label=f'q_{i}')
     ax[i].set_xlabel('Time [s]')
     ax[i].set_ylabel(f'q_{i} [rad]')
     ax[i].legend()
+plt.suptitle(f'Traiettorie dei Giunti per kp = {conf["kp"]}')
 plt.show()
 
-# Plot Cartesian trajectories
+# Plot delle Traiettorie Cartesiane
 plt.figure()
 for i in range(nx):
     plt.plot(tt, x[i, :], label=f'x_{i}')
     plt.plot(tt, x_ref[i, :], '--', label=f'x_ref_{i}')
 plt.xlabel('Time [s]')
 plt.ylabel('Position [m]')
+plt.title(f'Traiettorie Cartesiane per kp = {conf["kp"]}')
 plt.legend()
 plt.show()
-
-# Save the values of q to a text file
-np.savetxt('/Users/tommasoandina/Desktop/q_values.txt', q)
