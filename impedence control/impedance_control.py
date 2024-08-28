@@ -28,7 +28,7 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 
 # Simulation parameters
 conf = {
-    'T_SIMULATION': 8.0,
+    'T_SIMULATION': 6.0,
     'dt_control': 1/1000,   # Time step for controller: 1 ms
     'dt_simulation': 1/16000,  # Time step for simulator: 1/16 ms
     'PRINT_T': 1.0,
@@ -37,7 +37,7 @@ conf = {
     'kd_j': 20.0,
     'kp': 1000.0,  # Fixed kp for the controller
     'kd': 2 * np.sqrt(1000),  # Corresponding kd for critical damping
-    'q0': np.array([1.50882228e-04, 1.02054791e-02, 1.84429995e+00, 0.0, 0.0, 0.0])  # Initial position
+    'q0': np.zeros(num_dof),
 }
 
 # Placeholder for simulator
@@ -92,13 +92,8 @@ class Simulator:
 simu = Simulator()
 
 def generate_trajectory(t):
-    t_points = [0.0, 2.0, 5.0, 8.0]  # Updated to match the simulation duration
-    x_points = [
-        [1.50882228e-04, 1.02054791e-02, 1.84429995e+00],  # Start point
-        [0.5, 0.7, 0.6],  # Intermediate control point
-        [1.0, 1.5, 1.2],  # Another intermediate control point
-        [1.5, 1.3, 1.0]   # End point
-    ]
+    t_points = [0.0, 6.0]
+    x_points = [[1.50882228e-04, 1.02054791e-02, 1.84429995e+00]
 
     # Ensure continuity by using cubic spline interpolation
     x_spline = CubicSpline(t_points, [p[0] for p in x_points], bc_type='natural')
@@ -148,6 +143,9 @@ kd = conf['kd']
 tracking_err_osc = []
 tracking_err_ic = []
 
+
+
+
 for (test_id, test) in enumerate(tests):
     description = str(test_id) + ' Controller ' + test['controller'] + ' kp=1000'
     print(description)
@@ -175,12 +173,13 @@ for (test_id, test) in enumerate(tests):
     for i in range(0, N_control):
         time_start = time.time()
 
+
         x_ref[:, i], dx_ref[:, i], ddx_ref[:, i] = generate_trajectory(t)
 
         v[:, i] = np.squeeze(simu.v)
         q[:, i] = np.squeeze(simu.q)
 
-        if i % PRINT_N == 0:  # Adjusted print frequency
+        if i % PRINT_N == 0:
             print(f"Step {i}:")
             print(f"q = {q[:, i]}")
             print(f"v = {v[:, i]}")
@@ -273,8 +272,6 @@ for (test_id, test) in enumerate(tests):
 
     print('Max tracking error (norma all\'infinito): %.3f m\n' % (tracking_err))
 
-    # Analisi di stabilità
-    check_stability(M2, h2, J_full)
 
 # Plot delle Traiettorie dei Giunti
 (f, ax) = plt.subplots(num_dof, 1, figsize=(10, 20))
