@@ -29,14 +29,14 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 # Simulation parameters
 conf = {
     'T_SIMULATION': 6.0,
-    'dt_control': 1/1000,   # Time step for controller: 1 ms
-    'dt_simulation': 1/16000,  # Time step for simulator: 1/16 ms
+    'dt_control': 1/1000,   
+    'dt_simulation': 1/16000,  
     'PRINT_T': 1.0,
     'simulate_real_time': False,
     'kp_j': 100.0,
     'kd_j': 20.0,
-    'kp': 1000.0,  # Fixed kp for the controller
-    'kd': 2 * np.sqrt(1000),  # Corresponding kd for critical damping
+    'kp': 1000.0,  
+    'kd': 2 * np.sqrt(1000),  
     'q0': np.zeros(num_dof),
 }
 
