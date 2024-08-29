@@ -35,10 +35,10 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 
 
 tests = []
-tests += [{'controllore': 'OSC',  'k_frizione': 0}]
-tests += [{'controllore': 'OSC',  'k_frizione': 10}]
-tests += [{'controllore': 'OSC', 'k_frizione': 50}]
-tests += [{'controllore': 'OSC', 'k_frizione': 100}]
+tests += [{'controllore': 'OSC',  'k_attrito': 0}]
+tests += [{'controllore': 'OSC',  'k_attrito': 10}]
+tests += [{'controllore': 'OSC', 'k_attrito': 50}]
+tests += [{'controllore': 'OSC', 'k_attrito': 100}]
 
 
 
@@ -187,7 +187,7 @@ for (test_id, test) in  enumerate(tests):
     description = str(test_id)+' Controller '+test['controllore']+' k_frizione='+str(test['k_frizione'])
     print(description)
 
-    k_attrito = test['k_frizione']
+    k_attrito = test['k_attrito'']
     simu.init(conf['q0'])
     ddq_totali = []
     
