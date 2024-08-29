@@ -39,6 +39,7 @@ tests += [{'controllore': 'OSC',  'k_attrito': 0}]
 tests += [{'controllore': 'OSC',  'k_attrito': 10}]
 tests += [{'controllore': 'OSC', 'k_attrito': 50}]
 tests += [{'controllore': 'OSC', 'k_attrito': 100}]
+tests += [{'controllore': 'OSC', 'k_attrito': 1000}]
 
 
 
