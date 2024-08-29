@@ -5,10 +5,8 @@ from adam.casadi.computations import KinDynComputations
 import matplotlib.pyplot as plt
 from numpy.linalg import norm
 import time
-import sys
-import pickle
 from scipy.interpolate import CubicSpline
-from scipy.linalg import eigvals
+
 
 # Configuration
 urdf_path = "/Users/tommasoandina/Desktop/Doosan_h2515-main/model.urdf"
@@ -51,10 +49,10 @@ conf = {
     'dt_simulation': 1/16000,  
     'PRINT_T': 1.0,
     'simulate_real_time': False,
-    'kp_j': 1.0,
-    'kd_j': np.sqrt(1),
+    'kp_j': 100.0,
+    'kd_j': np.sqrt(100),
     'kp': 1000,  
-    'kd': 2 * np.sqrt(1), 
+    'kd': 2 * np.sqrt(1000), 
     'q0': np.zeros(num_dof),
 }
 
@@ -181,7 +179,7 @@ kp = conf['kp']
 kd = conf['kd']
 
 tracking_err_osc = []
-ddq_totali = []
+
 
 
 
@@ -191,7 +189,8 @@ for (test_id, test) in  enumerate(tests):
 
     k_attrito = test['k_frizione']
     simu.init(conf['q0'])
-
+    ddq_totali = []
+    
     nx, ndx = 3, 3
     N_control = int(conf['T_SIMULATION'] / conf['dt_control'])
     N_simulation = int(conf['dt_control'] / conf['dt_simulation'])
@@ -301,10 +300,6 @@ for (test_id, test) in  enumerate(tests):
     print('Accelerazione media: %.3f m/s^2\n' % (accelerazione_media))
 
 
-    
-
-
-
     # Plot delle Traiettorie dei Giunti
     (f, ax) = plt.subplots(num_dof, 1, figsize=(10, 20))
     tt = np.arange(0.0, N_control * conf['dt_control'], conf['dt_control'])
@@ -314,7 +309,7 @@ for (test_id, test) in  enumerate(tests):
         ax[i].set_xlabel('Time [s]')
         ax[i].set_ylabel(f'q_{i} [rad]')
         ax[i].legend()
-    plt.suptitle(f'Traiettorie dei Giunti per kp = {conf["kp"]}')
+    plt.suptitle(f'Traiettorie dei Giunti per k_friction = {test['k_frizione']}')
     plt.show()
 
     # Plot delle Traiettorie Cartesiane
@@ -324,7 +319,7 @@ for (test_id, test) in  enumerate(tests):
         plt.plot(tt, x_ref[i, :], '--', label=f'x_ref_{i}')
     plt.xlabel('Time [s]')
     plt.ylabel('Position [m]')
-    plt.title(f'Traiettorie Cartesiane per kp = {conf["kp"]}')
+    plt.title(f'Traiettorie Cartesiane per k_frition = {test['k_frizione']}')
     plt.legend()
     plt.show()
 
