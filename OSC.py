@@ -39,7 +39,7 @@ tests += [{'controllore': 'OSC',  'k_frizione': 0}]
 tests += [{'controllore': 'OSC',  'k_frizione': 10}]
 tests += [{'controllore': 'OSC', 'k_frizione': 50}]
 tests += [{'controllore': 'OSC', 'k_frizione': 100}]
-tests += [{'controllore': 'OSC','k_frizione': 1000}]
+
 
 
 # Simulation parameters
