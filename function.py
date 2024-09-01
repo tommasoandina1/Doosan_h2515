@@ -154,15 +154,3 @@ def generate_trajectory(t):
     ddx_ref = np.array([x_spline(t, 2), y_spline(t, 2), z_spline(t, 2)])
 
     return x_ref, dx_ref, ddx_ref
-
-'''
-def euler_integration(simu, tau, dt_simulation, N_simulation):
-    for _ in range(N_simulation):
-        dv = simu.compute_dv(tau)  
-        simu.v += dv * dt_simulation  
-        simu.q += simu.v * dt_simulation  
-    simu.update_state()
-
-def rk4_integration(simu, tau, dt_simulation, N_simulation):
-    simu.simulate(tau, dt_simulation, N_simulation)
-'''
