@@ -7,7 +7,7 @@ from numpy.linalg import norm
 import time, sys
 
 
-from simulation import Simulator, z_superficie, generate_sin_trajectory
+from function import Simulator, z_superficie, generate_sin_trajectory
 
 # Configuration
 urdf_path = "/Users/tommasoandina/Desktop/Doosan_h2515-main/model.urdf"
