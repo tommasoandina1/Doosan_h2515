@@ -30,7 +30,8 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 
 tests = []
 
-
+tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
+tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 
 tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
