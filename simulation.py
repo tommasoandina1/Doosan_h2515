@@ -31,42 +31,21 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 tests = []
 
 
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
 
 tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
 tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
 
 tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
 tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
 tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
 
 
 
@@ -389,29 +368,3 @@ for (test_id, test) in  enumerate(tests):
         plt.legend()
         plt.show()
     
-
-# Estrai i valori delle norme inf dagli errori
-inf_norm_errors_osc_RK4_values = [np.mean(item['value']) for item in inf_norm_errors_osc_RK4]
-inf_norm_errors_osc_Euler_values = [np.mean(item['value']) for item in inf_norm_errors_osc_Euler]
-inf_norm_errors_ic_RK4_values = [np.mean(item['value']) for item in inf_norm_errors_ic_RK4]
-inf_norm_errors_ic_Euler_values = [np.mean(item['value']) for item in inf_norm_errors_ic_Euler]
-
-# Verifica la lunghezza delle liste
-print(f"Lunghezza di dt_simulation_values: {len(dt_simulation_values)}")
-print(f"Lunghezza di inf_norm_errors_osc_RK4_values: {len(inf_norm_errors_osc_RK4_values)}")
-print(f"Lunghezza di inf_norm_errors_osc_Euler_values: {len(inf_norm_errors_osc_Euler_values)}")
-print(f"Lunghezza di inf_norm_errors_ic_RK4_values: {len(inf_norm_errors_ic_RK4_values)}")
-print(f"Lunghezza di inf_norm_errors_ic_Euler_values: {len(inf_norm_errors_ic_Euler_values)}")
-
-
-# Plot delle curve
-plt.figure(figsize=(10, 6))
-plt.plot(dt_simulation_values, inf_norm_errors_osc_RK4_values, 'o-', label='OSC con RK4')
-plt.plot(dt_simulation_values, inf_norm_errors_osc_Euler_values, 's-', label='OSC con Euler')
-plt.plot(dt_simulation_values, inf_norm_errors_ic_RK4_values, '^-', label='IC con RK4')
-plt.plot(dt_simulation_values, inf_norm_errors_ic_Euler_values, 'd-', label='IC con Euler')
-plt.xlabel('dt_simulation [s]')
-plt.ylabel('Norma Inf Errore Posizione [m]')
-plt.title('Norma Inf Errore di Posizione dell\'EE per Metodo di Integrazione e Controllore')
-plt.legend()
-plt.show()
