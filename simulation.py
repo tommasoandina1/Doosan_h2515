@@ -343,48 +343,6 @@ for (test_id, test) in enumerate(tests):
     print(f'Accelerazione minima dell\'EE (xy) durante il contatto: {min_accelerazione_ee_xy:.3f} m/s^2')
     
 
-    '''
-    (f, ax) = plt.subplots(num_dof, 1, figsize=(10, 20))
-    tt = np.arange(0.0, N_control * conf['dt_control'], conf['dt_control'])
-
-    for i in range(num_dof):
-        ax[i].plot(tt, q[i, :-1], label=f'q_{i}')
-        ax[i].set_xlabel('Time [s]')
-        ax[i].set_ylabel(f'q_{i} [rad]')
-        ax[i].legend()
-    plt.suptitle(f'Traiettorie dei Giunti per k_attrito = {test['k_attrito']}, del controllore {test["controllore"]} con un time step di {test["dt_simulation"]} s')
-    plt.show()
-    
-    # Plot delle Traiettorie Cartesiane
-    plt.figure()
-    for i in range(nx):
-        plt.plot(tt, x[i, :], label=f'x_{i}')
-        plt.plot(tt, x_ref[i, :], '--', label=f'x_ref_{i}')
-    plt.xlabel('Time [s]')
-    plt.ylabel('Position [m]')
-    plt.title(f'Traiettorie Cartesiane per k_attrito = {test['k_attrito']}, del controllore {test["controllore"]} con un time step di {test["dt_simulation"]} s')
-    plt.legend()
-    plt.show()
-
-    # Plot delle Velocità Cartesiane
-    plt.figure()
-    for i in range(nx):
-        plt.plot(tt, v[i, :], label=f'v_{i}')
-    plt.xlabel('Time [s]')
-    plt.ylabel('Velocity [m/s]')
-    plt.title(f'Velocità Cartesiane per k_attrito = {test['k_attrito']}, del controllore {test["controllore"]} con un time step di {test["dt_simulation"]} s')
-    plt.legend()
-    plt.show()
-    # Plot delle Accelerazioni Cartesiane
-    plt.figure()
-    for i in range(nx):
-        plt.plot(tt, accelerazione_ee_xy[i, :], label=f'a_{i}')
-    plt.xlabel('Time [s]')
-    plt.ylabel('Acceleration [m/s^2]')
-    plt.title(f'Accelerazioni Cartesiane per k_attrito = {test['k_attrito']}, del controllore {test["controllore"]} con un time step di {test["dt_simulation"]} s')
-    plt.legend()
-    plt.show()
-    '''
     (f, ax) = plt.subplots(num_dof, 1, figsize=(10, 20))
     tt = np.arange(0.0, N_control * conf['dt_control'], conf['dt_control'])
 
