@@ -31,48 +31,10 @@ forward_kinematics_fun = kinDyn.forward_kinematics_fun(end_effector)
 tests = []
 
 acceleration_results = {}
-#k_attrito_values = [0.0, 0.05] #, 0.10, 0.15, 0.20]
 
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
+tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
 tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 1.25, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.05, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.1, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.2, 'metodo_integrazione': 'RK4'}]
 
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.1, 'metodo_integrazione': 'Euler'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/32000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/16000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/8000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/4000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/2000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'RK4'}]
-
-#tests += [{'controllore': 'IC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
-#tests += [{'controllore': 'OSC', 'kp': 1000, 'dt_simulation': 1/1000, 'k_attrito': 0.15, 'metodo_integrazione': 'Euler'}]
 
 
 
